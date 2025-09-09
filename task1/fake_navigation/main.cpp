@@ -55,7 +55,7 @@ void update_telemetry(telemetry_t* telemetry, tcp::socket* telemetry_socket){
 
     //get actual odometry data from fucked up telemetry
     telemetry->da = -(packet.a-prev_mts_a) * ENCODER_ANGULAR_MULTIPLIER;
-    telemetry->ds = sqrt(pow(packet.x-prev_mts_x,2)+pow(packet.y-prev_mts_y,2))  * ENCODER_LINEAR_MULTIPLIER;
+    telemetry->ds = sqrt(pow(packet.x-prev_mts_x,2)+pow(packet.y-prev_mts_y,2)) * ENCODER_LINEAR_MULTIPLIER;
     //copy lidar data to telemetry variable
     memcpy(&(telemetry->distances),&(packet.distances),sizeof(telemetry->distances));
 
@@ -146,6 +146,8 @@ int main() {
                 grid[cell_x][cell_y] = 1;
             }
         }
+
+        //TOOD: improve robot position by tracking horizontal/vertical walls
     }
 
     draw_thread.join();
