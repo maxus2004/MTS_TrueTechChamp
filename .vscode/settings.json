@@ -1,6 +1,7 @@
 {
     "cmake.sourceDirectory": "/home/max/MTS/task1/fake_navigation",
     "files.associations": {
-        "cmath": "cpp"
+        "cmath": "cpp",
+        "random": "cpp"
     }
 }

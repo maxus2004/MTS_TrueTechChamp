@@ -50,19 +50,19 @@ void update_telemetry(telemetry_t* telemetry, tcp::socket* telemetry_socket){
     //get telemetry data
     std::array<char, 8192> buf;
     size_t len = telemetry_socket->read_some(asio::buffer(buf));
-    mts_telemetry_packet_t mts_telemetry_packet;
-    memcpy(&mts_telemetry_packet, buf.data(), sizeof(mts_telemetry_packet));
+    mts_telemetry_packet_t packet;
+    memcpy(&packet, buf.data(), sizeof(packet));
 
     //get actual odometry data from fucked up telemetry
-    telemetry->da = -(mts_telemetry_packet.a-prev_mts_a);
-    telemetry->ds = sqrt(pow(mts_telemetry_packet.x-prev_mts_x,2)+pow(mts_telemetry_packet.y-prev_mts_y,2));
+    telemetry->da = -(packet.a-prev_mts_a) * ENCODER_ANGULAR_MULTIPLIER;
+    telemetry->ds = sqrt(pow(packet.x-prev_mts_x,2)+pow(packet.y-prev_mts_y,2))  * ENCODER_LINEAR_MULTIPLIER;
     //copy lidar data to telemetry variable
-    memcpy(&(telemetry->distances),&(mts_telemetry_packet.distances),sizeof(telemetry->distances));
+    memcpy(&(telemetry->distances),&(packet.distances),sizeof(telemetry->distances));
 
     //update prev values
-    prev_mts_x = mts_telemetry_packet.x;
-    prev_mts_y = mts_telemetry_packet.y;
-    prev_mts_a = mts_telemetry_packet.a;
+    prev_mts_x = packet.x;
+    prev_mts_y = packet.y;
+    prev_mts_a = packet.a;
 }
 
 void draw_loop() {
