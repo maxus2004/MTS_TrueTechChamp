@@ -7,7 +7,7 @@ using asio::ip::tcp;
 using namespace std;
 
 //cell grid parameters
-#define GRID_W 500
+#define GRID_W 1000
 #define GRID_H 500
 #define CELL_SIZE 0.02f // 1 cell = 20mm
 
@@ -18,27 +18,25 @@ using namespace std;
 
 struct mts_telemetry_packet_t {
     char header[8];
-    float x;
-    float y;
-    float a;
-    float vx;
-    float vy;
-    float vth;
+    float x,y,a;
+    float vx,vy,va;
+    float gx,gy,gz;
     uint32_t lidar_count;
     float distances[360];
 };
 
 struct telemetry_t {
     float ds;
-    float da;
+    float gy;
     float distances[360];
 };
 
 uint8_t grid[GRID_W][GRID_H]; 
 
-float robot_x = 0;
-float robot_y = 0;
+float robot_x = 9;
+float robot_y = -1;
 float robot_a = 0;
+float dt = 0.032f;
 
 bool running = true;
 
@@ -54,7 +52,7 @@ void update_telemetry(telemetry_t* telemetry, tcp::socket* telemetry_socket){
     memcpy(&packet, buf.data(), sizeof(packet));
 
     //get actual odometry data from fucked up telemetry
-    telemetry->da = -(packet.a-prev_mts_a) * ENCODER_ANGULAR_MULTIPLIER;
+    telemetry->gy = packet.gy;
     telemetry->ds = sqrt(pow(packet.x-prev_mts_x,2)+pow(packet.y-prev_mts_y,2)) * ENCODER_LINEAR_MULTIPLIER;
     //copy lidar data to telemetry variable
     memcpy(&(telemetry->distances),&(packet.distances),sizeof(telemetry->distances));
@@ -114,10 +112,11 @@ int main() {
     telemetry_t telemetry;
 
     while (running) {
+        std::chrono::steady_clock::time_point time = std::chrono::steady_clock::now();
         update_telemetry(&telemetry, &telemetry_socket);
 
         //dead reckoning (The missle knows where it is because....)
-        robot_a += telemetry.da;
+        robot_a -= telemetry.gy*dt;
         robot_x += telemetry.ds*sin(robot_a);
         robot_y -= telemetry.ds*cos(robot_a);
 

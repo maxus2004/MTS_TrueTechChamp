@@ -14,8 +14,16 @@ def send_cmd(v: float, w: float):
     packet = struct.pack("<2f", v, w)
     sock_cmd.sendto(packet, (CMD_HOST, CMD_PORT))
 
-for i in range(130):
-    send_cmd(0,0.3)
-    time.sleep(0.1)
-
-send_cmd(0,0)
+while True:
+    c = input()
+    match c:
+        case "w":
+            send_cmd(0.5,0)
+        case "s":
+            send_cmd(-0.5,0)
+        case "a":
+            send_cmd(0,0.5)
+        case "d":
+            send_cmd(0,-0.5)
+        case _:
+            send_cmd(0,0)
