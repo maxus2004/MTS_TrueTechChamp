@@ -1,3 +1,4 @@
 build/
 /deps/tmp
-/deps/opencv_tmp
+/deps/opencv_tmps
+/.cache

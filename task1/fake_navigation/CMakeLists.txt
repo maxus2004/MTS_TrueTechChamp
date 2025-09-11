@@ -23,7 +23,7 @@ if(NOT EXISTS "${OPENCV_DIR}/include/opencv4")
         GIT_TAG 4.10.0
         GIT_SHALLOW TRUE
         GIT_PROGRESS TRUE
-        PREFIX "${CMAKE_SOURCE_DIR}/../deps/opencv_tmp"
+        PREFIX "${CMAKE_SOURCE_DIR}/deps/opencv_tmp"
         CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${OPENCV_DIR}
             -DCMAKE_BUILD_TYPE=Release
