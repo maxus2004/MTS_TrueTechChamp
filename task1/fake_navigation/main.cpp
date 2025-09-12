@@ -2,65 +2,48 @@
 #include <iostream>
 #include <cmath>
 #include <raylib.h>
+#include <opencv2/opencv.hpp>
+#include "utils.h"
+#include "params.h"
 
 using asio::ip::tcp;
 using namespace std;
 
-//cell grid parameters
-#define GRID_W 1000
-#define GRID_H 500
-#define CELL_SIZE 0.02f // 1 cell = 20mm
+cv::Mat1b grid(cv::Size(GRID_W, GRID_H)); 
 
-//odometry unfucking parameters
-#define ENCODER_LINEAR_MULTIPLIER 1
-#define ENCODER_ANGULAR_MULTIPLIER 1
-
-
-struct mts_telemetry_packet_t {
-    char header[8];
-    float x,y,a;
-    float vx,vy,va;
-    float gx,gy,gz;
-    uint32_t lidar_count;
-    float distances[360];
-};
-
-struct telemetry_t {
-    float ds;
-    float gy;
-    float distances[360];
-};
-
-uint8_t grid[GRID_W][GRID_H]; 
-
-float robot_x = 9;
-float robot_y = -1;
-float robot_a = 0;
-float dt = 0.032f;
+Robot robot{9,-2,0};
 
 bool running = true;
 
-float prev_mts_x;
-float prev_mts_y;
-float prev_mts_a;
+float prev_mts_x = 0;
+float prev_mts_y = 0;
 
-void update_telemetry(telemetry_t* telemetry, tcp::socket* telemetry_socket){
+void update_telemetry(Telemetry* telemetry, tcp::socket* telemetry_socket){
     //get telemetry data
     std::array<char, 8192> buf;
     size_t len = telemetry_socket->read_some(asio::buffer(buf));
-    mts_telemetry_packet_t packet;
+    MtsTelemetryPacket packet;
     memcpy(&packet, buf.data(), sizeof(packet));
 
     //get actual odometry data from fucked up telemetry
     telemetry->gy = packet.gy;
-    telemetry->ds = sqrt(pow(packet.x-prev_mts_x,2)+pow(packet.y-prev_mts_y,2)) * ENCODER_LINEAR_MULTIPLIER;
+    telemetry->ds = distance(packet.x,packet.y,prev_mts_x,prev_mts_y) * ENCODER_LINEAR_MULTIPLIER;
     //copy lidar data to telemetry variable
     memcpy(&(telemetry->distances),&(packet.distances),sizeof(telemetry->distances));
 
     //update prev values
     prev_mts_x = packet.x;
     prev_mts_y = packet.y;
-    prev_mts_a = packet.a;
+}
+
+void getScanPoints(ScanPoint *points, Telemetry &telemetry, Robot &robot){
+    for(int i = 0;i<360;i++){
+        float a = robot.a+(45.0f-i/4.0f)/57.2958f;
+        float d = telemetry.distances[i];
+        float x = d*sin(a)+robot.x;
+        float y = -d*cos(a)+robot.y;
+        points[i] = {a,d,x,y};
+    }
 }
 
 void draw_loop() {
@@ -72,7 +55,7 @@ void draw_loop() {
         //draw map cells
         for (int x = 0; x < GRID_W; x++) {
             for (int y = 0; y < GRID_H; y++) {
-                switch (grid[x][y]) {
+                switch (grid[y][x]) {
                     case 0:
                         DrawPixel(x, y, GRAY);
                         break;
@@ -87,10 +70,10 @@ void draw_loop() {
         }
 
         //draw robot
-        float screen_robot_x = robot_x/CELL_SIZE+GRID_W/2;
-        float screen_robot_y = robot_y/CELL_SIZE+GRID_H/2;
-        float dir_x = 10*sin(robot_a);
-        float dir_y = -10*cos(robot_a);
+        float screen_robot_x = robot.x/CELL_SIZE+GRID_W/2;
+        float screen_robot_y = robot.y/CELL_SIZE+GRID_H/2;
+        float dir_x = 10*sin(robot.a);
+        float dir_y = -10*cos(robot.a);
         DrawCircle(screen_robot_x, screen_robot_y, 10, GREEN);
         DrawLineEx({screen_robot_x, screen_robot_y}, {screen_robot_x+dir_x, screen_robot_y+dir_y}, 3, BLACK);
 
@@ -109,44 +92,54 @@ int main() {
 
     thread draw_thread(draw_loop);
 
-    telemetry_t telemetry;
+    Telemetry telemetry;
 
     while (running) {
-        std::chrono::steady_clock::time_point time = std::chrono::steady_clock::now();
+        //receive telemetry from robot in simulation
         update_telemetry(&telemetry, &telemetry_socket);
 
         //dead reckoning (The missle knows where it is because....)
-        robot_a -= telemetry.gy*dt;
-        robot_x += telemetry.ds*sin(robot_a);
-        robot_y -= telemetry.ds*cos(robot_a);
+        robot.a -= telemetry.gy*DT;
+        robot.x += telemetry.ds*sin(robot.a);
+        robot.y -= telemetry.ds*cos(robot.a);
+
+        //copy grid before modifying to fix flickering in render loop
+        //maybe it's better to pause rendering when modifying grid instead of copying, but this works for now
+        cv::Mat1b gridCopy = grid.clone();
 
         //obstacle mapping
+        ScanPoint scanPoints[360];
+        getScanPoints(scanPoints,telemetry,robot);
+        
+        //fill while cells where there are no obstacles
+        for(int i = 1;i<360;i++){
+            cv::Point trianglePoints[3] = {
+                worldToGrid(robot.x, robot.y),
+                worldToGrid(scanPoints[i-1]),
+                worldToGrid(scanPoints[i])
+            };
+            cv::fillConvexPoly(gridCopy,trianglePoints,3,2);
+        }
+
+        //fill black cells where there are obstacles
         for(int i = 0;i<360;i++){
-            float d = telemetry.distances[i];
-            float a = robot_a+(45-i/4)/57.2958f;
-            float rel_x = d*sin(a);
-            float rel_y = -d*cos(a);
-            //fill while cells where there are no obstacles
-            for(int j = 0;j<d/CELL_SIZE;j++){
-                float x = robot_x+rel_x/(d/CELL_SIZE)*j;
-                float y = robot_y+rel_y/(d/CELL_SIZE)*j;
-                int cell_x = x/CELL_SIZE+GRID_W/2;
-                int cell_y = y/CELL_SIZE+GRID_H/2;
-                if(cell_x<0 || cell_x>GRID_W || cell_y<0 || cell_y>GRID_H)continue;
-                grid[cell_x][cell_y] = 2;
-            }
-            //set black cell if found an obstacle
-            if(d<8){
-                float x = robot_x+rel_x;
-                float y = robot_y+rel_y;
-                int cell_x = x/CELL_SIZE+GRID_W/2;
-                int cell_y = y/CELL_SIZE+GRID_H/2;
-                if(cell_x<0 || cell_x>GRID_W || cell_y<0 || cell_y>GRID_H)continue;
-                grid[cell_x][cell_y] = 1;
+            if(scanPoints[i].d < 8){
+                if(i != 0 && distance(scanPoints[i-1], scanPoints[i]) < 0.25 && scanPoints[i-1].d < 8){
+                    //if points are close to eachother, connect them with a line
+                    cv::line(gridCopy,worldToGrid(scanPoints[i-1]),worldToGrid(scanPoints[i]),1);
+                }else{
+                    //else draw a single point
+                    cv::Point point = worldToGrid(scanPoints[i]);
+                    gridCopy[point.y][point.x] = 1;
+                }
             }
         }
 
+        //update grid for visualization
+        gridCopy.copyTo(grid);
+
         //TOOD: improve robot position by tracking horizontal/vertical walls
+
     }
 
     draw_thread.join();

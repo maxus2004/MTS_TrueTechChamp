@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(ExternalProject)
 
-add_executable(fake_navigation main.cpp)
+add_executable(fake_navigation main.cpp utils.h utils.cpp)
 
 include_directories("deps/asio-1.36.0/include")
 
