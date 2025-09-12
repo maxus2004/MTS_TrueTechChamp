@@ -11,7 +11,7 @@ using namespace std;
 
 cv::Mat1b grid(cv::Size(GRID_W, GRID_H)); 
 
-Robot robot{9,-2,0};
+Robot robot{9,-1.25,0};
 
 bool running = true;
 
