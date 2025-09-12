@@ -1,10 +1,13 @@
 #include <asio.hpp>
+#include <asio/ip/udp.hpp>
 #include <iostream>
 #include <cmath>
 #include <raylib.h>
-#include <opencv2/opencv.hpp>
+//#include <opencv2/opencv.hpp>
+#include <opencv4/opencv2/opencv.hpp>
 #include "utils.h"
 #include "params.h"
+#include "movement.h"
 
 using asio::ip::tcp;
 using namespace std;
@@ -47,9 +50,13 @@ void getScanPoints(ScanPoint *points, Telemetry &telemetry, Robot &robot){
 }
 
 void draw_loop() {
+    asio::io_context io_context;
+    asio::ip::udp::socket socket(io_context, asio::ip::udp::v4());
+
     InitWindow(GRID_W, GRID_H, "ArchBTW monitoring");
 
     while (!WindowShouldClose()) {
+        handle_input(socket);
         BeginDrawing();
 
         //draw map cells

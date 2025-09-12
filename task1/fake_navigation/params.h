@@ -1,3 +1,5 @@
+#pragma once
+
 //cell grid parameters
 #define GRID_W 1000
 #define GRID_H 525

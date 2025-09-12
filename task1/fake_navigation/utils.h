@@ -1,3 +1,4 @@
+#pragma once
 #include <opencv2/opencv.hpp>
 #include "params.h"
 
@@ -25,6 +26,10 @@ struct Robot {
 struct ScanPoint{
     float a,d;
     float x,y;
+};
+
+enum MoveDirection{
+    UP, DOWN, LEFT, RIGHT
 };
 
 cv::Point worldToGrid(float x, float y);
