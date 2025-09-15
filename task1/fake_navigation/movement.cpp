@@ -1,22 +1,21 @@
 #include "movement.h"
+#include <iostream>
+using namespace std;
 
 void handle_input(asio::ip::udp::socket& s){
-    if(IsKeyPressed(KEY_A)) handle_move(MoveDirection::LEFT, s);
-    if(IsKeyPressed(KEY_D)) handle_move(MoveDirection::RIGHT, s);
-    if(IsKeyPressed(KEY_W)) handle_move(MoveDirection::UP, s);
-    if(IsKeyPressed(KEY_S)) handle_move(MoveDirection::DOWN, s);
+
+    float v = 0;
+    float w = 0;
+    if(IsKeyDown(KEY_A)) w += 0.5;
+    if(IsKeyDown(KEY_D)) w -= 0.5;
+    if(IsKeyDown(KEY_W)) v += 0.5;
+    if(IsKeyDown(KEY_S)) v -= 0.5;
+    cout << v << endl;
+    send_move(v, w, s);
 }
 
 
-void handle_move(MoveDirection d, asio::ip::udp::socket& s){
-    float v,w;
-    switch (d) {
-        case MoveDirection::UP: v = 0.5; w = 0; break;
-        case MoveDirection::DOWN: v = -0.5; w = 0; break;
-        case MoveDirection::LEFT: v = 0; w = 0.5; break;
-        case MoveDirection::RIGHT: v = 0; w = -0.5; break;
-    }   
-
+void send_move(float v, float w , asio::ip::udp::socket& s){
     std::array<char, sizeof(float) * 2> packet;
 
     std::memcpy(packet.data(), &v, sizeof(float));

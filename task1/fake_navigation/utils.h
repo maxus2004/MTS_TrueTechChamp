@@ -28,8 +28,8 @@ struct ScanPoint{
     float x,y;
 };
 
-enum MoveDirection{
-    UP, DOWN, LEFT, RIGHT
+struct PathPoint{
+    float x,y,r;
 };
 
 cv::Point worldToGrid(float x, float y);
