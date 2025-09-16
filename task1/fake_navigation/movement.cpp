@@ -2,7 +2,7 @@
 #include <iostream>
 using namespace std;
 
-void handle_input(asio::ip::udp::socket& s){
+void handle_wasd(asio::ip::udp::socket& s){
 
     float v = 0;
     float w = 0;
@@ -10,7 +10,6 @@ void handle_input(asio::ip::udp::socket& s){
     if(IsKeyDown(KEY_D)) w -= 0.5;
     if(IsKeyDown(KEY_W)) v += 0.5;
     if(IsKeyDown(KEY_S)) v -= 0.5;
-    cout << v << endl;
     send_move(v, w, s);
 }
 

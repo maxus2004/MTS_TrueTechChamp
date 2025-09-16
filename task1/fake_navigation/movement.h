@@ -9,5 +9,5 @@
 using asio::ip::tcp;
 using namespace std;
 
-void handle_input(asio::ip::udp::socket& s);
+void handle_wasd(asio::ip::udp::socket& s);
 void send_move(float v, float w, asio::ip::udp::socket& s);

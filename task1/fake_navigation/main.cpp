@@ -9,6 +9,7 @@
 #include "utils.h"
 #include "params.h"
 #include "movement.h"
+#include "path.h"
 
 using asio::ip::tcp;
 using namespace std;
@@ -20,13 +21,12 @@ cv::Mat1b pathfind_grid(cv::Size(GRID_W, GRID_H));
 Robot robot{12,-1.25,0};
 
 bool running = true;
-bool control_enabled = false;
+State state = State::ManualControl;
 
 float prev_mts_x = 0;
 float prev_mts_y = 0;
 
-float target_a = 0;
-float target_v = 0;
+vector<PathPoint> path;
 
 void update_telemetry(Telemetry* telemetry, tcp::socket* telemetry_socket){
     //get telemetry data
@@ -56,6 +56,22 @@ void getScanPoints(ScanPoint *points, Telemetry &telemetry, Robot &robot){
     }
 }
 
+void start_path(){
+    path.push_back({12,-1.25,0});
+    path.push_back({12,0.5,0});
+    path.push_back({11,0.5,0});
+    path.push_back({6,-2.5,0});
+    path.push_back({5.5,-2.5,0});
+    path.push_back({3.5,0,0});
+    path.push_back({-4,0,0});
+    path.push_back({-5,-2,0});
+    path.push_back({-7.5,-3,0});
+    path.push_back({-7.5,0,0});
+    followPath(path,robot);
+}
+
+thread path_thread;
+
 void draw_loop() {
     asio::io_context io_context;
     asio::ip::udp::socket socket(io_context, asio::ip::udp::v4());
@@ -63,7 +79,12 @@ void draw_loop() {
     InitWindow(GRID_W, GRID_H, "ArchBTW monitoring");
 
     while (!WindowShouldClose()) {
-        handle_input(socket);
+        if(state == State::ManualControl){
+            handle_wasd(socket);
+        }
+        if(IsKeyPressed(KEY_P)){
+            path_thread = thread(start_path);
+        }
         BeginDrawing();
 
         //draw map cells
@@ -91,6 +112,13 @@ void draw_loop() {
             }
         }
 
+        //draw path
+        for(int i = 1;i<path.size();i++){
+            cv::Point2f p1 = worldToGrid(path[i-1]);
+            cv::Point2f p2 = worldToGrid(path[i]);
+            DrawLineEx({p1.x, p1.y}, {p2.x, p2.y}, 3, BLUE);
+        }
+
         //draw robot
         float screen_robot_x = robot.x/CELL_SIZE+GRID_W/2;
         float screen_robot_y = robot.y/CELL_SIZE+GRID_H/2;
@@ -103,34 +131,6 @@ void draw_loop() {
     }
 
     running = false;
-}
-
-void controlLoop(){
-    while(control_enabled){
-        float cmd_v = 0;
-        float cmd_a = 0;
-        if(robot.a>target_a){
-            cmd_a = 0.5;
-        }else{
-            cmd_v = 0.5;
-        }
-        //send cmd
-    }
-}
-
-void followPath(vector<PathPoint> path, Robot &robot){
-    control_enabled = true;
-    thread control_thread(controlLoop);
-    for(int i = 0;i<path.size();i++){
-        target_v = 0;
-        target_a = atan2(path[i].y-robot.y,path[i].x-robot.x);
-        while(abs(robot.a-target_a)>1){
-            this_thread::sleep_for(chrono::milliseconds(10));
-        }
-        target_v = 0.5;
-    }
-    control_enabled = false;
-    control_thread.join();
 }
 
 int main() {
