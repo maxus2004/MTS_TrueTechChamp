@@ -14,12 +14,14 @@ struct MtsTelemetryPacket {
 struct Telemetry {
     float ds;
     float gy;
+    float v;
     float distances[360];
 };
 
 struct Robot {
     float x;
     float y;
+    float v;
     float a;
 };
 

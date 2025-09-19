@@ -18,7 +18,7 @@ cv::Mat1b grid(cv::Size(GRID_W, GRID_H));
 cv::Mat1b pathfind_grid(cv::Size(GRID_W, GRID_H)); 
 
 
-Robot robot{12,-1.25,0};
+Robot robot{12,-1.25,0,0};
 
 bool running = true;
 State state = State::ManualControl;
@@ -38,6 +38,7 @@ void update_telemetry(Telemetry* telemetry, tcp::socket* telemetry_socket){
     //get actual odometry data from fucked up telemetry
     telemetry->gy = packet.gy;
     telemetry->ds = distance(packet.x,packet.y,prev_mts_x,prev_mts_y) * ENCODER_LINEAR_MULTIPLIER;
+    telemetry->v = telemetry->ds/DT;
     //copy lidar data to telemetry variable
     memcpy(&(telemetry->distances),&(packet.distances),sizeof(telemetry->distances));
 
@@ -58,13 +59,11 @@ void getScanPoints(ScanPoint *points, Telemetry &telemetry, Robot &robot){
 
 void start_path(){
     path.push_back({12,-1.25,0});
-    path.push_back({12,0.5,0});
-    path.push_back({11,0.5,0});
-    path.push_back({6,-2.5,0});
-    path.push_back({5.5,-2.5,0});
-    path.push_back({3.5,0,0});
-    path.push_back({-4,0,0});
-    path.push_back({-5,-2,0});
+    path.push_back({11.5,1,1});
+    path.push_back({5.5,-3,1});
+    path.push_back({3.5,0,1});
+    path.push_back({-4,0,1});
+    path.push_back({-5,-2,1});
     path.push_back({-7.5,-3,0});
     path.push_back({-7.5,0,0});
     followPath(path,robot);
@@ -152,6 +151,7 @@ int main() {
         robot.a -= telemetry.gy*DT;
         robot.x += telemetry.ds*sin(robot.a);
         robot.y -= telemetry.ds*cos(robot.a);
+        robot.v = telemetry.v;
 
         //copy grid before modifying to fix flickering in render loop
         //maybe it's better to pause rendering when modifying grid instead of copying, but this works for now
