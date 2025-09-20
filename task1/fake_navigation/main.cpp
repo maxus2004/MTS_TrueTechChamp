@@ -71,13 +71,28 @@ void start_path(){
 
 thread path_thread;
 
+
 void draw_loop() {
+
     asio::io_context io_context;
     asio::ip::udp::socket socket(io_context, asio::ip::udp::v4());
 
     InitWindow(GRID_W, GRID_H, "ArchBTW monitoring");
 
-    while (!WindowShouldClose()) {
+    Shader shader = LoadShader(NULL, "../grid_shader.fs");
+
+    Color* pixels = new Color[GRID_W * GRID_H];
+
+    // Single-channel texture for the shader
+    Image img = GenImageColor(GRID_W, GRID_H, BLACK);
+    img.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    Texture2D gridTex = LoadTextureFromImage(img);
+    UnloadImage(img);
+
+    std::vector<cv::Point> changed_cells; 
+
+
+    while (!WindowShouldClose()){
         if(state == State::ManualControl){
             handle_wasd(socket);
         }
@@ -85,31 +100,59 @@ void draw_loop() {
             path_thread = thread(start_path);
         }
         BeginDrawing();
+        ClearBackground(RAYWHITE);
 
-        //draw map cells
-        for (int x = 0; x < GRID_W; x++) {
-            for (int y = 0; y < GRID_H; y++) {
-                switch (grid[y][x]) {
-                    case 0:
-                        if(pathfind_grid[y][x] == 255){
-                            DrawPixel(x, y, Color{ 170, 130, 130, 255 });
-                        }else{
-                            DrawPixel(x, y, Color{ 130, 130, 130, 255 });
-                        }
-                        break;
-                    case 1:
-                        DrawPixel(x, y, Color{ 0, 0, 0, 255 });
-                        break;
-                    case 2:
-                        if(pathfind_grid[y][x] == 255){
-                            DrawPixel(x, y, Color{ 255, 170, 170, 255 });
-                        }else{
-                            DrawPixel(x, y, Color{ 255, 255, 255, 255 });
-                        }
-                        break;
+        // Changed cells only update
+        changed_cells.clear();
+        for (int y = 0; y < GRID_H; y++) {
+            for (int x = 0; x < GRID_W; x++) {
+                uint8_t v = grid[y][x];
+                Color target = (v==0 ? Color{130,130,130,255} :
+                                v==1 ? BLACK :
+                                        WHITE);
+
+                if (pixels[y*GRID_W + x].r != target.r ||
+                    pixels[y*GRID_W + x].g != target.g ||
+                    pixels[y*GRID_W + x].b != target.b ||
+                    pixels[y*GRID_W + x].a != target.a)
+                {
+                    pixels[y*GRID_W + x] = target;
+                    changed_cells.push_back({x,y});
                 }
+
             }
         }
+
+        UpdateTexture(gridTex, pixels);
+
+        // Draw shader
+        BeginShaderMode(shader);
+        DrawTexture(gridTex, 0, 0, WHITE);
+        EndShaderMode();
+        // //draw map cells WHAT THE SIGMA
+        // for (int x = 0; x < GRID_W; x++) {
+        //     for (int y = 0; y < GRID_H; y++) {
+        //         switch (grid[y][x]) {
+        //             case 0:
+        //                 if(pathfind_grid[y][x] == 255){
+        //                     DrawPixel(x, y, Color{ 170, 130, 130, 255 });
+        //                 }else{
+        //                     DrawPixel(x, y, Color{ 130, 130, 130, 255 });
+        //                 }
+        //                 break;
+        //             case 1:
+        //                 DrawPixel(x, y, Color{ 0, 0, 0, 255 });
+        //                 break;
+        //             case 2:
+        //                 if(pathfind_grid[y][x] == 255){
+        //                     DrawPixel(x, y, Color{ 255, 170, 170, 255 });
+        //                 }else{
+        //                     DrawPixel(x, y, Color{ 255, 255, 255, 255 });
+        //                 }
+        //                 break;
+        //         }
+        //     }
+        // }
 
         //draw path
         for(int i = 1;i<path.size();i++){
@@ -126,10 +169,37 @@ void draw_loop() {
         DrawCircle(screen_robot_x, screen_robot_y, 10, GREEN);
         DrawLineEx({screen_robot_x, screen_robot_y}, {screen_robot_x+dir_x, screen_robot_y+dir_y}, 3, BLACK);
 
+
+        // Draw NavMesh
+        // float cellSize = 0.5;
+        // for (float i = -GRID_W/2; i < GRID_W/2; i += cellSize) {
+        //     for (float j = -GRID_H/2; j < GRID_H/2; j += cellSize) {
+        //         cv::Point topLeft     = worldToGrid(i, j);
+        //         cv::Point bottomRight = worldToGrid(i + cellSize, j + cellSize);
+
+        //         float w = bottomRight.x - topLeft.x;
+        //         float h = bottomRight.y - topLeft.y;
+
+        //         //DrawRectangleLines(topLeft.x, topLeft.y, w, h, MAGENTA);
+        //     }
+        // }
+
+        // Draw coordinates
+        DrawText(TextFormat("X: %.2f", robot.x), 10, 10, 20, RED);
+        DrawText(TextFormat("Y: %.2f", robot.y), 10, 30, 20, RED);
+        // Draw FPS
+        DrawText(TextFormat("%.02f FPS", 1.0/GetFrameTime()), 10, 50, 20, RED);
+
+
         EndDrawing();
     }
 
     running = false;
+    // Cleanup
+    delete[] pixels;
+    UnloadTexture(gridTex);
+    UnloadShader(shader);
+    CloseWindow();
 }
 
 int main() {
