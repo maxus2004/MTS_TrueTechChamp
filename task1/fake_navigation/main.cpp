@@ -91,6 +91,9 @@ void draw_loop() {
 
     std::vector<cv::Point> changed_cells; 
 
+    cv::Mat4b pixelsMat(cv::Size(GRID_W, GRID_H));
+    pixelsMat.data = (uchar*)pixels;
+
 
     while (!WindowShouldClose()){
         if(state == State::ManualControl){
@@ -102,57 +105,15 @@ void draw_loop() {
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        // Changed cells only update
-        changed_cells.clear();
-        for (int y = 0; y < GRID_H; y++) {
-            for (int x = 0; x < GRID_W; x++) {
-                uint8_t v = grid[y][x];
-                Color target = (v==0 ? Color{130,130,130,255} :
-                                v==1 ? BLACK :
-                                        WHITE);
-
-                if (pixels[y*GRID_W + x].r != target.r ||
-                    pixels[y*GRID_W + x].g != target.g ||
-                    pixels[y*GRID_W + x].b != target.b ||
-                    pixels[y*GRID_W + x].a != target.a)
-                {
-                    pixels[y*GRID_W + x] = target;
-                    changed_cells.push_back({x,y});
-                }
-
-            }
-        }
+        cv::mixChannels(grid,pixelsMat,{0,0});
+        cv::mixChannels(pathfind_grid,pixelsMat,{0,1});
 
         UpdateTexture(gridTex, pixels);
 
-        // Draw shader
+        // Draw grids
         BeginShaderMode(shader);
         DrawTexture(gridTex, 0, 0, WHITE);
         EndShaderMode();
-        // //draw map cells WHAT THE SIGMA
-        // for (int x = 0; x < GRID_W; x++) {
-        //     for (int y = 0; y < GRID_H; y++) {
-        //         switch (grid[y][x]) {
-        //             case 0:
-        //                 if(pathfind_grid[y][x] == 255){
-        //                     DrawPixel(x, y, Color{ 170, 130, 130, 255 });
-        //                 }else{
-        //                     DrawPixel(x, y, Color{ 130, 130, 130, 255 });
-        //                 }
-        //                 break;
-        //             case 1:
-        //                 DrawPixel(x, y, Color{ 0, 0, 0, 255 });
-        //                 break;
-        //             case 2:
-        //                 if(pathfind_grid[y][x] == 255){
-        //                     DrawPixel(x, y, Color{ 255, 170, 170, 255 });
-        //                 }else{
-        //                     DrawPixel(x, y, Color{ 255, 255, 255, 255 });
-        //                 }
-        //                 break;
-        //         }
-        //     }
-        // }
 
         //draw path
         for(int i = 1;i<path.size();i++){
