@@ -17,6 +17,10 @@ void handle_wasd(asio::ip::udp::socket& s){
 void send_move(float v, float w , asio::ip::udp::socket& s){
     std::array<char, sizeof(float) * 2> packet;
 
+    #ifdef BACKWARDS
+    v = -v;
+    #endif
+
     std::memcpy(packet.data(), &v, sizeof(float));
     std::memcpy(packet.data() + sizeof(float), &w, sizeof(float));
 

@@ -22,7 +22,11 @@ cv::Mat1b pathfind_grid(cv::Size(GRID_W, GRID_H));
 queue<Msg> message_queue;
 
 
+#ifdef BACKWARDS
+Robot robot{12,-1.25,0,PI};
+#else
 Robot robot{12,-1.25,0,0};
+#endif
 
 bool running = true;
 State state = State::ManualControl;
@@ -54,6 +58,9 @@ void update_telemetry(Telemetry* telemetry, tcp::socket* telemetry_socket){
 void getScanPoints(ScanPoint *points, Telemetry &telemetry, Robot &robot){
     for(int i = 0;i<360;i++){
         float a = robot.a+(45.0f-i/4.0f)/57.2958f;
+        #ifdef BACKWARDS
+        a += PI;
+        #endif
         float d = telemetry.distances[i];
         float x = d*sin(a)+robot.x;
         float y = -d*cos(a)+robot.y;
