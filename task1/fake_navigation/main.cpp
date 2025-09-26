@@ -36,6 +36,8 @@ float prev_mts_y = 0;
 
 vector<PathPoint> path;
 
+extern bool telemetry_updated;
+
 void update_telemetry(Telemetry* telemetry, tcp::socket* telemetry_socket){
     //get telemetry data
     std::array<char, 8192> buf;
@@ -215,6 +217,9 @@ int main() {
         gridCopy.copyTo(grid);
 
         //TOOD: improve robot position by tracking horizontal/vertical walls
+
+        //telemetry fully updated
+        telemetry_updated = true;
 
         //expand walls for pathfinding
         cv::compare(gridCopy,1,gridCopy,cv::CMP_EQ);

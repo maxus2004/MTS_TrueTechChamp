@@ -8,13 +8,15 @@ using namespace std;
 
 float target_a = 0;
 float target_v = 0;
+float prev_a = 0;
+
+bool telemetry_updated = false;
 
 #define LINEAR_SPEED 1.0f
 #define TURNING_SPEED 0.3f
 #define TURNING_SLOWDOWN_DISTANCE 0.5f
 #define LINEAR_PRECISION_METERS 0.1f
 #define ANGULAR_PRECISION_RADIANS 0.1f
-#define UPDATE_INTERVAL_SECONDS 0.01f
 
 #define TURNING_K_P 12.0f
 #define TURNING_MAX_P 3.0f
@@ -23,38 +25,46 @@ float target_v = 0;
 #define DRIVING_K_P 50.0f
 #define DRIVING_MAX_P 1.0f
 
-void controlLoop(Robot &robot){
-    asio::io_context io_context;
-    asio::ip::udp::socket socket(io_context, asio::ip::udp::v4());
-    float prev_a = fixAngleOverflow(target_a-robot.a);
-    while(state==State::PathFollowing){
-        float a_error = fixAngleOverflow(target_a-robot.a);
-        float va = fixAngleOverflow(robot.a-prev_a)/0.1f;
+#define MOVE_SEND_INTERVAL 5
+int move_send_counter = 0;
 
-        float turning_p = -a_error*TURNING_K_P;
-        if(turning_p > TURNING_MAX_P) turning_p = TURNING_MAX_P;
-        if(turning_p < -TURNING_MAX_P) turning_p = -TURNING_MAX_P;
-        float turning_d = va*TURNING_K_D;
+void updatePID(Robot &robot, asio::ip::udp::socket &socket){
+    float a_error = fixAngleOverflow(target_a-robot.a);
+    float va = fixAngleOverflow(robot.a-prev_a)/DT;
 
-        float v_error = robot.v-target_v;
+    float turning_p = -a_error*TURNING_K_P;
+    if(turning_p > TURNING_MAX_P) turning_p = TURNING_MAX_P;
+    if(turning_p < -TURNING_MAX_P) turning_p = -TURNING_MAX_P;
+    float turning_d = va*TURNING_K_D;
 
-        float driving_p = -v_error*DRIVING_K_P;
-        if(target_v == 0) driving_p = 0;
-        if(driving_p > DRIVING_MAX_P) driving_p = DRIVING_MAX_P;
-        if(driving_p < -DRIVING_MAX_P) driving_p = -DRIVING_MAX_P;
+    float v_error = robot.v-target_v;
 
-        cout << turning_p << " " << turning_d << " " << a_error << endl;
+    float driving_p = -v_error*DRIVING_K_P;
+    if(target_v == 0) driving_p = 0;
+    if(driving_p > DRIVING_MAX_P) driving_p = DRIVING_MAX_P;
+    if(driving_p < -DRIVING_MAX_P) driving_p = -DRIVING_MAX_P;
 
+    if(move_send_counter == 0){
+        move_send_counter = MOVE_SEND_INTERVAL;
         send_move(driving_p, turning_p+turning_d, socket);
-
-        prev_a = robot.a;
-        this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+    move_send_counter--;
+
+    prev_a = robot.a;
+}
+
+void wait_for_telemetry(){
+    while(!telemetry_updated){
+        this_thread::yield();
+    }
+    telemetry_updated = false;
 }
 
 void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
+    asio::io_context io_context;
+    asio::ip::udp::socket socket(io_context, asio::ip::udp::v4());
+
     state=State::PathFollowing;
-    thread control_thread(controlLoop, std::ref(robot));
     cout << "starting path following" << endl;
     for(int i = 1;i<path.size();i++){
         cout << "point " << i << "/" << path.size()-1 << endl;
@@ -70,11 +80,12 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
                     messages->pop();
                     cout << "aborted" << endl;
                     target_v = 0;
+                    send_move(0, 0, socket);
                     state = State::ManualControl;
-                    control_thread.join();
-                    return;;
+                    return;
                 }
-                this_thread::sleep_for(chrono::duration<float>(UPDATE_INTERVAL_SECONDS));
+                wait_for_telemetry();
+                updatePID(robot, socket);
             }
         }
         target_v = LINEAR_SPEED;
@@ -90,7 +101,8 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
             cout << "driving..." << endl;
             target_v = LINEAR_SPEED;
             while(distance(path[i].x,path[i].y,robot.x,robot.y)>turn_start_distance+TURNING_SLOWDOWN_DISTANCE){
-                this_thread::sleep_for(chrono::duration<float>(UPDATE_INTERVAL_SECONDS));
+                wait_for_telemetry();
+                updatePID(robot, socket);
             }
 
             cout << "slow driving..." << endl;
@@ -100,11 +112,11 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
                     messages->pop();
                     cout << "aborted" << endl;
                     target_v = 0;
+                    send_move(0, 0, socket);
                     state = State::ManualControl;
-                    control_thread.join();
-                    return;;
-                }
-                this_thread::sleep_for(chrono::duration<float>(UPDATE_INTERVAL_SECONDS));
+                    return;
+                }                wait_for_telemetry();
+                updatePID(robot, socket);
             }
 
             cout << "turning..." << endl;
@@ -115,13 +127,14 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
                         messages->pop();
                         cout << "aborted" << endl;
                         target_v = 0;
+                        send_move(0, 0, socket);
                         state = State::ManualControl;
-                        control_thread.join();
-                        return;;
+                        return;
                     }
                     target_a = turn_start_a+turn_delta_a*turn_progress;
-                    turn_progress += robot.v*UPDATE_INTERVAL_SECONDS/turn_arc_length;
-                    this_thread::sleep_for(chrono::duration<float>(UPDATE_INTERVAL_SECONDS));
+                    turn_progress += robot.v*DT/turn_arc_length;
+                    wait_for_telemetry();
+                    updatePID(robot, socket);
                 }
             }
             target_a = turn_end_a;
@@ -133,11 +146,12 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
                     messages->pop();
                     cout << "aborted" << endl;
                     target_v = 0;
+                    send_move(0, 0, socket);
                     state = State::ManualControl;
-                    control_thread.join();
-                    return;;
+                    return;
                 }
-                this_thread::sleep_for(chrono::duration<float>(UPDATE_INTERVAL_SECONDS));
+                wait_for_telemetry();
+                updatePID(robot, socket);
             }
         }
     }
@@ -145,5 +159,4 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
     cout << "done" << endl;
 
     state = State::ManualControl;
-    control_thread.join();
 }
