@@ -1,10 +1,12 @@
 {
-    "cmake.sourceDirectory": "/home/max/MTS/task1/fake_navigation",
+    "cmake.sourceDirectory": "${workspaceFolder}/task1/fake_navigation",
+    "cmake.buildDirectory": "${workspaceFolder}/task1/fake_navigation/build",
     "files.associations": {
         "cmath": "cpp",
         "random": "cpp",
         "complex": "cpp",
         "chrono": "cpp",
-        "ostream": "cpp"
+        "ostream": "cpp",
+        "iostream": "cpp"
     }
 }

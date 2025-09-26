@@ -68,8 +68,8 @@ void start_path(queue<Msg>* messages){
     path.push_back({3.5,0,1});
     path.push_back({-4,0,1});
     path.push_back({-5,-2,1});
-    path.push_back({-7.5,-3,0});
-    path.push_back({-7.5,0,0});
+    path.push_back({-7.7,-4,1});
+    path.push_back({-7.7,0,0});
     followPath(path,robot, messages);
 }
 
@@ -83,7 +83,7 @@ void draw_loop() {
 
     InitWindow(GRID_W, GRID_H, "ArchBTW monitoring");
 
-    Shader shader = LoadShader(NULL, "../grid_shader.fs");
+    Shader shader = LoadShader(NULL, "grid_shader.fs");
 
     Color* pixels = new Color[GRID_W * GRID_H];
 

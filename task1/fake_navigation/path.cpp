@@ -9,24 +9,45 @@ using namespace std;
 float target_a = 0;
 float target_v = 0;
 
-#define LINEAR_SPEED 0.3f
-#define TURN_SPEED 0.6f;
+#define LINEAR_SPEED 1.0f
+#define TURNING_SPEED 0.3f
+#define TURNING_SLOWDOWN_DISTANCE 0.5f
 #define LINEAR_PRECISION_METERS 0.1f
-#define ANGULAR_PRECISION_RADIANS 0.01f
+#define ANGULAR_PRECISION_RADIANS 0.1f
 #define UPDATE_INTERVAL_SECONDS 0.01f
+
+#define TURNING_K_P 12.0f
+#define TURNING_MAX_P 3.0f
+#define TURNING_K_D 6.0f
+
+#define DRIVING_K_P 50.0f
+#define DRIVING_MAX_P 1.0f
 
 void controlLoop(Robot &robot){
     asio::io_context io_context;
     asio::ip::udp::socket socket(io_context, asio::ip::udp::v4());
+    float prev_a = fixAngleOverflow(target_a-robot.a);
     while(state==State::PathFollowing){
-        float a = fixAngleOverflow(target_a-robot.a);
-        float cmd_a = 0;
-        if(a>0){
-            cmd_a = -TURN_SPEED;
-        }else{
-            cmd_a = TURN_SPEED;
-        }
-        send_move(target_v, cmd_a, socket);
+        float a_error = fixAngleOverflow(target_a-robot.a);
+        float va = fixAngleOverflow(robot.a-prev_a)/0.1f;
+
+        float turning_p = -a_error*TURNING_K_P;
+        if(turning_p > TURNING_MAX_P) turning_p = TURNING_MAX_P;
+        if(turning_p < -TURNING_MAX_P) turning_p = -TURNING_MAX_P;
+        float turning_d = va*TURNING_K_D;
+
+        float v_error = robot.v-target_v;
+
+        float driving_p = -v_error*DRIVING_K_P;
+        if(target_v == 0) driving_p = 0;
+        if(driving_p > DRIVING_MAX_P) driving_p = DRIVING_MAX_P;
+        if(driving_p < -DRIVING_MAX_P) driving_p = -DRIVING_MAX_P;
+
+        cout << turning_p << " " << turning_d << " " << a_error << endl;
+
+        send_move(driving_p, turning_p+turning_d, socket);
+
+        prev_a = robot.a;
         this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
@@ -67,6 +88,13 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
             float turn_arc_length = abs(path[i].r * turn_delta_a);
 
             cout << "driving..." << endl;
+            target_v = LINEAR_SPEED;
+            while(distance(path[i].x,path[i].y,robot.x,robot.y)>turn_start_distance+TURNING_SLOWDOWN_DISTANCE){
+                this_thread::sleep_for(chrono::duration<float>(UPDATE_INTERVAL_SECONDS));
+            }
+
+            cout << "slow driving..." << endl;
+            target_v = TURNING_SPEED;
             while(distance(path[i].x,path[i].y,robot.x,robot.y)>LINEAR_PRECISION_METERS+turn_start_distance){
                 if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
                     messages->pop();
@@ -99,6 +127,7 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
             target_a = turn_end_a;
         }else{
             cout << "driving..." << endl;
+            target_v = LINEAR_SPEED;
             while(distance(path[i].x,path[i].y,robot.x,robot.y)>LINEAR_PRECISION_METERS){
                 if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
                     messages->pop();
