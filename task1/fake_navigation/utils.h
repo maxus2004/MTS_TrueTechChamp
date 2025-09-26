@@ -34,6 +34,11 @@ struct PathPoint{
     float x,y,r;
 };
 
+enum Msg {
+    STARTFOLLOW,
+    STOPFOLOW
+};
+
 enum State{
     ManualControl,
     PathFollowing

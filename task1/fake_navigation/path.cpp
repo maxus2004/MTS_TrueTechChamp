@@ -1,6 +1,7 @@
 #include "path.h"
 #include <thread>
 #include "movement.h"
+#include "utils.h"
 #include <iostream>
 
 using namespace std;
@@ -30,7 +31,7 @@ void controlLoop(Robot &robot){
     }
 }
 
-void followPath(vector<PathPoint> path, Robot &robot){
+void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
     state=State::PathFollowing;
     thread control_thread(controlLoop, std::ref(robot));
     cout << "starting path following" << endl;
@@ -44,6 +45,14 @@ void followPath(vector<PathPoint> path, Robot &robot){
             target_v = 0;
             target_a = align_end_a;
             while(abs(fixAngleOverflow(robot.a-align_end_a))>ANGULAR_PRECISION_RADIANS){
+                if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
+                    messages->pop();
+                    cout << "aborted" << endl;
+                    target_v = 0;
+                    state = State::ManualControl;
+                    control_thread.join();
+                    return;;
+                }
                 this_thread::sleep_for(chrono::duration<float>(UPDATE_INTERVAL_SECONDS));
             }
         }
@@ -59,6 +68,14 @@ void followPath(vector<PathPoint> path, Robot &robot){
 
             cout << "driving..." << endl;
             while(distance(path[i].x,path[i].y,robot.x,robot.y)>LINEAR_PRECISION_METERS+turn_start_distance){
+                if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
+                    messages->pop();
+                    cout << "aborted" << endl;
+                    target_v = 0;
+                    state = State::ManualControl;
+                    control_thread.join();
+                    return;;
+                }
                 this_thread::sleep_for(chrono::duration<float>(UPDATE_INTERVAL_SECONDS));
             }
 
@@ -66,6 +83,14 @@ void followPath(vector<PathPoint> path, Robot &robot){
             float turn_progress = 0;
             if(turn_arc_length != 0){
                 while(turn_progress<1){
+                    if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
+                        messages->pop();
+                        cout << "aborted" << endl;
+                        target_v = 0;
+                        state = State::ManualControl;
+                        control_thread.join();
+                        return;;
+                    }
                     target_a = turn_start_a+turn_delta_a*turn_progress;
                     turn_progress += robot.v*UPDATE_INTERVAL_SECONDS/turn_arc_length;
                     this_thread::sleep_for(chrono::duration<float>(UPDATE_INTERVAL_SECONDS));
@@ -75,6 +100,14 @@ void followPath(vector<PathPoint> path, Robot &robot){
         }else{
             cout << "driving..." << endl;
             while(distance(path[i].x,path[i].y,robot.x,robot.y)>LINEAR_PRECISION_METERS){
+                if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
+                    messages->pop();
+                    cout << "aborted" << endl;
+                    target_v = 0;
+                    state = State::ManualControl;
+                    control_thread.join();
+                    return;;
+                }
                 this_thread::sleep_for(chrono::duration<float>(UPDATE_INTERVAL_SECONDS));
             }
         }

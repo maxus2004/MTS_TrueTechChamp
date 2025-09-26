@@ -3,9 +3,12 @@
 #include <iostream>
 #include <cmath>
 #include <chrono>
+#include <locale>
+#include <queue>
 #include <thread>
 #include <raylib.h>
 #include <opencv4/opencv2/opencv.hpp>
+#include <vector>
 #include "utils.h"
 #include "params.h"
 #include "movement.h"
@@ -16,6 +19,7 @@ using namespace std;
 
 cv::Mat1b grid(cv::Size(GRID_W, GRID_H)); 
 cv::Mat1b pathfind_grid(cv::Size(GRID_W, GRID_H)); 
+queue<Msg> message_queue;
 
 
 Robot robot{12,-1.25,0,0};
@@ -57,7 +61,7 @@ void getScanPoints(ScanPoint *points, Telemetry &telemetry, Robot &robot){
     }
 }
 
-void start_path(){
+void start_path(queue<Msg>* messages){
     path.push_back({12,-1.25,0});
     path.push_back({11.5,1,1});
     path.push_back({5.5,-3,1});
@@ -66,16 +70,16 @@ void start_path(){
     path.push_back({-5,-2,1});
     path.push_back({-7.5,-3,0});
     path.push_back({-7.5,0,0});
-    followPath(path,robot);
+    followPath(path,robot, messages);
 }
 
 thread path_thread;
 
 
 void draw_loop() {
-
     asio::io_context io_context;
     asio::ip::udp::socket socket(io_context, asio::ip::udp::v4());
+    bool path_thread_exists = false;
 
     InitWindow(GRID_W, GRID_H, "ArchBTW monitoring");
 
@@ -100,7 +104,13 @@ void draw_loop() {
             handle_wasd(socket);
         }
         if(IsKeyPressed(KEY_P)){
-            path_thread = thread(start_path);
+            if (!path_thread_exists) {
+                path_thread = thread(start_path, &message_queue);
+                path_thread_exists = true;
+            }
+            else {
+                message_queue.push(Msg::STOPFOLOW);
+            }
         }
         BeginDrawing();
         ClearBackground(RAYWHITE);
@@ -129,21 +139,6 @@ void draw_loop() {
         float dir_y = -10*cos(robot.a);
         DrawCircle(screen_robot_x, screen_robot_y, 10, GREEN);
         DrawLineEx({screen_robot_x, screen_robot_y}, {screen_robot_x+dir_x, screen_robot_y+dir_y}, 3, BLACK);
-
-
-        // Draw NavMesh
-        // float cellSize = 0.5;
-        // for (float i = -GRID_W/2; i < GRID_W/2; i += cellSize) {
-        //     for (float j = -GRID_H/2; j < GRID_H/2; j += cellSize) {
-        //         cv::Point topLeft     = worldToGrid(i, j);
-        //         cv::Point bottomRight = worldToGrid(i + cellSize, j + cellSize);
-
-        //         float w = bottomRight.x - topLeft.x;
-        //         float h = bottomRight.y - topLeft.y;
-
-        //         //DrawRectangleLines(topLeft.x, topLeft.y, w, h, MAGENTA);
-        //     }
-        // }
 
         // Draw coordinates
         DrawText(TextFormat("X: %.2f", robot.x), 10, 10, 20, RED);
