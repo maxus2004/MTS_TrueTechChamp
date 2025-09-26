@@ -36,7 +36,7 @@ float prev_mts_y = 0;
 
 vector<PathPoint> path;
 
-extern bool telemetry_updated;
+bool telemetry_updated = false;
 
 void update_telemetry(Telemetry* telemetry, tcp::socket* telemetry_socket){
     //get telemetry data
@@ -92,7 +92,7 @@ void draw_loop() {
 
     InitWindow(GRID_W, GRID_H, "ArchBTW monitoring");
 
-    Shader shader = LoadShader(NULL, "grid_shader.fs");
+    Shader shader = LoadShader(NULL, "../grid_shader.fs");
 
     Color* pixels = new Color[GRID_W * GRID_H];
 

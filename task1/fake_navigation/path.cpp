@@ -10,7 +10,7 @@ float target_a = 0;
 float target_v = 0;
 float prev_a = 0;
 
-bool telemetry_updated = false;
+extern bool telemetry_updated;
 
 #define LINEAR_SPEED 1.0f
 #define TURNING_SPEED 0.3f
@@ -24,9 +24,6 @@ bool telemetry_updated = false;
 
 #define DRIVING_K_P 50.0f
 #define DRIVING_MAX_P 1.0f
-
-#define MOVE_SEND_INTERVAL 5
-int move_send_counter = 0;
 
 void updatePID(Robot &robot, asio::ip::udp::socket &socket){
     float a_error = fixAngleOverflow(target_a-robot.a);
@@ -44,11 +41,7 @@ void updatePID(Robot &robot, asio::ip::udp::socket &socket){
     if(driving_p > DRIVING_MAX_P) driving_p = DRIVING_MAX_P;
     if(driving_p < -DRIVING_MAX_P) driving_p = -DRIVING_MAX_P;
 
-    if(move_send_counter == 0){
-        move_send_counter = MOVE_SEND_INTERVAL;
-        send_move(driving_p, turning_p+turning_d, socket);
-    }
-    move_send_counter--;
+    send_move(driving_p, turning_p+turning_d, socket);
 
     prev_a = robot.a;
 }

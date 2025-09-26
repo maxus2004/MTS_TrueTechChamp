@@ -2,7 +2,11 @@
 #include <iostream>
 using namespace std;
 
+extern bool telemetry_updated;
+
 void handle_wasd(asio::ip::udp::socket& s){
+    if(!telemetry_updated) return;
+    telemetry_updated = false;
 
     float v = 0;
     float w = 0;
