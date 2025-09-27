@@ -95,17 +95,56 @@ void draw_loop() {
     Shader shader = LoadShader(NULL, "../grid_shader.fs");
 
     Color* pixels = new Color[GRID_W * GRID_H];
-
-    // Single-channel texture for the shader
     Image img = GenImageColor(GRID_W, GRID_H, BLACK);
     img.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
     Texture2D gridTex = LoadTextureFromImage(img);
     UnloadImage(img);
 
-    std::vector<cv::Point> changed_cells; 
+    cv::Mat pixelsMat(GRID_H, GRID_W, CV_8UC4, (void*)pixels);
 
-    cv::Mat4b pixelsMat(cv::Size(GRID_W, GRID_H));
-    pixelsMat.data = (uchar*)pixels;
+    
+    Image imgColor = GenImageColor(GRID_W, GRID_H, BLACK);
+    imgColor.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    Texture2D colorTex = LoadTextureFromImage(imgColor);
+    UnloadImage(imgColor);
+
+    
+    cv::Mat distanceGrid(GRID_H, GRID_W, CV_32F);
+    cv::Point goal; 
+    PathPoint t;
+    t.x = -7.7;
+    t.y = 0;
+    goal = worldToGrid(t);
+
+    for (int y = 0; y < GRID_H; y++) {
+        float dy = float(y - goal.y);
+        for (int x = 0; x < GRID_W; x++) {
+            float dx = float(x - goal.x);
+            distanceGrid.at<float>(y, x) = sqrt(dx*dx + dy*dy);
+        }
+    }
+    double minVal, maxVal;
+    cv::minMaxLoc(distanceGrid, &minVal, &maxVal);
+    distanceGrid = (distanceGrid - minVal) / (maxVal - minVal);
+
+
+    cv::Mat colorGrid(GRID_H, GRID_W, CV_8UC3);
+    uchar* colorData = colorGrid.data;
+    for (int y = 0; y < GRID_H; y++) {
+        const float* distRow = distanceGrid.ptr<float>(y);
+        for (int x = 0; x < GRID_W; x++) {
+            float val = distRow[x];
+            int idx = (y * GRID_W + x) * 3;
+            colorData[idx + 0] = (uchar)(val * 255);
+            colorData[idx + 1] = 0;                         
+            colorData[idx + 2] = (uchar)((1.0f - val) * 255); 
+        }
+    }
+
+
+    cv::Mat colorGridRGBA;
+    cv::cvtColor(colorGrid, colorGridRGBA, cv::COLOR_BGR2BGRA);
+    UpdateTexture(colorTex, colorGridRGBA.data);
 
 
     while (!WindowShouldClose()){
@@ -116,7 +155,7 @@ void draw_loop() {
             if (!path_thread_exists) {
                 path_thread = thread(start_path, &message_queue);
                 path_thread_exists = true;
-            }
+            } 
             else {
                 message_queue.push(Msg::STOPFOLOW);
             }
@@ -131,6 +170,7 @@ void draw_loop() {
 
         // Draw grids
         BeginShaderMode(shader);
+        SetShaderValueTexture(shader, GetShaderLocation(shader, "uColorMap"), colorTex);
         DrawTexture(gridTex, 0, 0, WHITE);
         EndShaderMode();
 
@@ -140,6 +180,10 @@ void draw_loop() {
             cv::Point2f p2 = worldToGrid(path[i]);
             DrawLineEx({p1.x, p1.y}, {p2.x, p2.y}, 3, BLUE);
         }
+
+        // Draw goal
+        DrawCircle(goal.x, goal.y, 5, MAGENTA);
+        
 
         //draw robot
         float screen_robot_x = robot.x/CELL_SIZE+GRID_W/2;
@@ -163,6 +207,7 @@ void draw_loop() {
     // Cleanup
     delete[] pixels;
     UnloadTexture(gridTex);
+    UnloadTexture(colorTex);
     UnloadShader(shader);
     CloseWindow();
 }
