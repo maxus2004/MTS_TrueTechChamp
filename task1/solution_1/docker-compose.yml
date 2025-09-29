@@ -1,0 +1,17 @@
+services:
+  demo-client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: task1-solution1
+    ports:
+      - "5600:5600"
+    environment:
+      - CMD_HOST=host.docker.internal
+      - CMD_PORT=5555
+      - TEL_HOST=0.0.0.0
+      - TEL_PORT=5600
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    working_dir: /app
+    command: build/fake_navigation
