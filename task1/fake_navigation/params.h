@@ -14,4 +14,4 @@
 
 #define BACKWARDS
 
-//#define VISUALIZATION
+#define VISUALIZATION
