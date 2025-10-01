@@ -12,10 +12,10 @@ float prev_a = 0;
 
 extern bool telemetry_updated;
 
-#define LINEAR_SPEED 1.0f
+#define LINEAR_SPEED 0.5f
 #define TURNING_SPEED 0.3f
 #define TURNING_SLOWDOWN_DISTANCE 0.5f
-#define LINEAR_PRECISION_METERS 0.1f
+#define LINEAR_PRECISION_METERS 0.3f
 #define ANGULAR_PRECISION_RADIANS 0.1f
 
 #define TURNING_K_P 12.0f

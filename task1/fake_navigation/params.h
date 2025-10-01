@@ -12,6 +12,6 @@
 //simulation parameters
 #define DT 0.032f
 
-#define BACKWARDS
+//#define BACKWARDS
 
 #define VISUALIZATION

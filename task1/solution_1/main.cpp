@@ -40,8 +40,8 @@ bool telemetry_updated = false;
 
 void update_telemetry(Telemetry* telemetry, tcp::socket* telemetry_socket){
     //get telemetry data
-    std::array<char, 8192> buf;
-    size_t len = telemetry_socket->read_some(asio::buffer(buf));
+    std::array<char, 1488> buf;
+    asio::read(*telemetry_socket, asio::buffer(buf, 1488));
     MtsTelemetryPacket packet;
     memcpy(&packet, buf.data(), sizeof(packet));
 
@@ -247,45 +247,45 @@ int main() {
 
         //copy grid before modifying to fix flickering in render loop
         //maybe it's better to pause rendering when modifying grid instead of copying, but this works for now
-        cv::Mat1b gridCopy = grid.clone();
+        // cv::Mat1b gridCopy = grid.clone();
 
-        //obstacle mapping
-        ScanPoint scanPoints[360];
-        getScanPoints(scanPoints,telemetry,robot);
+        // //obstacle mapping
+        // ScanPoint scanPoints[360];
+        // getScanPoints(scanPoints,telemetry,robot);
         
-        //fill while cells where there are no obstacles
-        for(int i = 3;i<358;i++){
-            cv::Point trianglePoints[3] = {
-                worldToGrid(robot.x, robot.y),
-                worldToGrid(scanPoints[i-1]),
-                worldToGrid(scanPoints[i])
-            };
-            cv::fillConvexPoly(gridCopy,trianglePoints,3,2);
-        }
+        // //fill while cells where there are no obstacles
+        // for(int i = 3;i<358;i++){
+        //     cv::Point trianglePoints[3] = {
+        //         worldToGrid(robot.x, robot.y),
+        //         worldToGrid(scanPoints[i-1]),
+        //         worldToGrid(scanPoints[i])
+        //     };
+        //     cv::fillConvexPoly(gridCopy,trianglePoints,3,2);
+        // }
 
-        //fill black cells where there are obstacles
-        for(int i = 1;i<360;i++){
-            if(scanPoints[i].d < 8 && scanPoints[i-1].d < 8 && distance(scanPoints[i-1], scanPoints[i]) < 0.25){
-                cv::line(gridCopy,worldToGrid(scanPoints[i-1]),worldToGrid(scanPoints[i]),1);
-            }
-        }
+        // //fill black cells where there are obstacles
+        // for(int i = 1;i<360;i++){
+        //     if(scanPoints[i].d < 8 && scanPoints[i-1].d < 8 && distance(scanPoints[i-1], scanPoints[i]) < 0.25){
+        //         cv::line(gridCopy,worldToGrid(scanPoints[i-1]),worldToGrid(scanPoints[i]),1);
+        //     }
+        // }
 
-        //update grid for visualization
-        gridCopy.copyTo(grid);
+        // //update grid for visualization
+        // gridCopy.copyTo(grid);
 
-        //TOOD: improve robot position by tracking horizontal/vertical walls
+        // //TOOD: improve robot position by tracking horizontal/vertical walls
 
-        //telemetry fully updated
+        // //telemetry fully updated
         telemetry_updated = true;
 
-        //expand walls for pathfinding
-        cv::compare(gridCopy,1,gridCopy,cv::CMP_EQ);
-        int dilation_size = 10;
-        int dilation_type = cv::MORPH_ELLIPSE;
-        cv::Mat element = cv::getStructuringElement( dilation_type,
-                       cv::Size( 2*dilation_size + 1, 2*dilation_size+1 ),
-                       cv::Point( dilation_size, dilation_size ) );
-        cv::dilate(gridCopy,pathfind_grid,element);
+        // //expand walls for pathfinding
+        // cv::compare(gridCopy,1,gridCopy,cv::CMP_EQ);
+        // int dilation_size = 10;
+        // int dilation_type = cv::MORPH_ELLIPSE;
+        // cv::Mat element = cv::getStructuringElement( dilation_type,
+        //                cv::Size( 2*dilation_size + 1, 2*dilation_size+1 ),
+        //                cv::Point( dilation_size, dilation_size ) );
+        // cv::dilate(gridCopy,pathfind_grid,element);
     }
 
     #ifdef VISUALIZATION

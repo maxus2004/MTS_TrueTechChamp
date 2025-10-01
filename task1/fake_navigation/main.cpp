@@ -9,6 +9,7 @@
 #include <raylib.h>
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <numeric>
 #include "utils.h"
 #include "params.h"
 #include "movement.h"
@@ -253,6 +254,40 @@ int main() {
         ScanPoint scanPoints[360];
         getScanPoints(scanPoints,telemetry,robot);
         
+        //Hough lines
+        cv::Mat1b houghGrid(cv::Size(GRID_W, GRID_H)); 
+        houghGrid.setTo(cv::Scalar(0));
+        for(int i = 0;i<360;i++){
+            if(scanPoints[i].d < 8){
+                houghGrid.at<uchar>(worldToGrid(scanPoints[i])) = 255;
+            }
+        }
+        vector<cv::Vec4i> houghLines;
+        cv::HoughLinesP(houghGrid, houghLines, 2, 0.02, 30, 15, 3);
+
+        vector<float> angles;
+
+        cv::Mat3b houghVisualization(cv::Size(GRID_W, GRID_H)); 
+        houghVisualization.setTo(cv::Scalar(0,0,0));
+        for(cv::Vec4i l: houghLines){
+            float a = atan2(l[3]-l[1],l[2]-l[0]);
+            while(a > PI/4) a -= PI/2;
+            while(a < -PI/4) a += PI/2;
+            if(abs(a) < 0.2f){
+                angles.push_back(a);
+            }
+            cv::line(houghVisualization, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(rand()%256,rand()%256,rand()%256), 1);
+        }
+        if(angles.size() > 0){
+            float averageAngle = reduce(angles.begin(), angles.end()) / angles.size();
+            cout << "avg angle: " << averageAngle << endl;
+            robot.a -= averageAngle;
+        }
+        cv::imshow("Hough Lines Visualization",houghVisualization);
+        cv::waitKey(10);
+
+        getScanPoints(scanPoints,telemetry,robot);
+        
         //fill while cells where there are no obstacles
         for(int i = 3;i<358;i++){
             cv::Point trianglePoints[3] = {
@@ -272,8 +307,6 @@ int main() {
 
         //update grid for visualization
         gridCopy.copyTo(grid);
-
-        //TOOD: improve robot position by tracking horizontal/vertical walls
 
         //telemetry fully updated
         telemetry_updated = true;
