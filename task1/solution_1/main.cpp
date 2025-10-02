@@ -210,6 +210,7 @@ void draw_loop() {
 }
 
 int main() {
+    try{
     //connect to simulation
     asio::io_context io_context;
     string host = "0.0.0.0";
@@ -291,4 +292,9 @@ int main() {
     #ifdef VISUALIZATION
     draw_thread.join();
     #endif
+    }catch(std::exception e){
+        message_queue.push(Msg::STOPFOLOW);
+        path_thread.join();
+        cout << "Exception: " << e.what() << endl;
+    }
 }

@@ -56,8 +56,8 @@ void updatePID(Robot &robot){
     prev_a = robot.a;
 }
 
-void wait_for_telemetry(){
-    while(!telemetry_updated){
+void wait_for_telemetry(queue<Msg>* messages){
+    while(!telemetry_updated && messages->empty()){
         this_thread::yield();
     }
     telemetry_updated = false;
@@ -84,7 +84,7 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
                     state = State::ManualControl;
                     return;
                 }
-                wait_for_telemetry();
+                wait_for_telemetry(messages);
                 updatePID(robot);
             }
         }
@@ -101,7 +101,7 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
             cout << "state: driving..." << endl;
             target_v = LINEAR_SPEED;
             while(distance(path[i].x,path[i].y,robot.x,robot.y)>turn_start_distance+TURNING_SLOWDOWN_DISTANCE){
-                wait_for_telemetry();
+                wait_for_telemetry(messages);
                 updatePID(robot);
             }
 
@@ -115,7 +115,8 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
                     send_move(0, 0);
                     state = State::ManualControl;
                     return;
-                }                wait_for_telemetry();
+                }
+                wait_for_telemetry(messages);
                 updatePID(robot);
             }
 
@@ -133,7 +134,7 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
                     }
                     target_a = turn_start_a+turn_delta_a*turn_progress;
                     turn_progress += robot.v*DT/turn_arc_length;
-                    wait_for_telemetry();
+                    wait_for_telemetry(messages);
                     updatePID(robot);
                 }
             }
@@ -150,7 +151,7 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
                     state = State::ManualControl;
                     return;
                 }
-                wait_for_telemetry();
+                wait_for_telemetry(messages);
                 updatePID(robot);
             }
         }
