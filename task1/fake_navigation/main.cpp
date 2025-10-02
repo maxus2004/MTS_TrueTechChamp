@@ -41,8 +41,8 @@ bool telemetry_updated = false;
 
 void update_telemetry(Telemetry* telemetry, tcp::socket* telemetry_socket){
     //get telemetry data
-    std::array<char, 8192> buf;
-    size_t len = telemetry_socket->read_some(asio::buffer(buf));
+    std::array<char, 1488> buf;
+    asio::read(*telemetry_socket, asio::buffer(buf, 1488));
     MtsTelemetryPacket packet;
     memcpy(&packet, buf.data(), sizeof(packet));
 
