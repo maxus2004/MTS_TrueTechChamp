@@ -305,11 +305,11 @@ int main() {
             }
         }
 
-        //update grid for visualization
-        gridCopy.copyTo(grid);
-
         //telemetry fully updated
         telemetry_updated = true;
+
+        //update grid for visualization
+        gridCopy.copyTo(grid);
 
         //expand walls for pathfinding
         cv::compare(gridCopy,1,gridCopy,cv::CMP_EQ);
