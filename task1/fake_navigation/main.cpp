@@ -246,6 +246,9 @@ int main() {
         robot.y -= telemetry.ds*cos(robot.a);
         robot.v = telemetry.v;
 
+        //telemetry fully updated
+        telemetry_updated = true;
+
         //copy grid before modifying to fix flickering in render loop
         //maybe it's better to pause rendering when modifying grid instead of copying, but this works for now
         cv::Mat1b gridCopy = grid.clone();
@@ -304,9 +307,6 @@ int main() {
                 cv::line(gridCopy,worldToGrid(scanPoints[i-1]),worldToGrid(scanPoints[i]),1);
             }
         }
-
-        //telemetry fully updated
-        telemetry_updated = true;
 
         //update grid for visualization
         gridCopy.copyTo(grid);
