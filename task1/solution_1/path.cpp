@@ -12,7 +12,7 @@ float prev_a = 0;
 
 extern bool telemetry_updated;
 
-#define LINEAR_SPEED 0.5f
+#define LINEAR_SPEED 1.0f
 #define TURNING_SPEED 0.3f
 #define TURNING_SLOWDOWN_DISTANCE 0.5f
 #define LINEAR_PRECISION_METERS 0.3f
@@ -24,6 +24,8 @@ extern bool telemetry_updated;
 
 #define DRIVING_K_P 50.0f
 #define DRIVING_MAX_P 1.0f
+
+int logging_interval_counter = 0;
 
 void updatePID(Robot &robot){
     float a_error = fixAngleOverflow(target_a-robot.a);
@@ -43,6 +45,14 @@ void updatePID(Robot &robot){
 
     send_move(driving_p, turning_p+turning_d);
 
+    if(logging_interval_counter == 0){
+        logging_interval_counter = 16;
+        cout << "debug: position (robot.x robot.y robot.a robot.v): " << robot.x << " " << robot.y << " " << robot.a << " " << robot.v << endl;
+        cout << "debug: target (target_v target_a)" << target_v << " " << target_a << endl;
+        cout << "debug: control (driving_p turning_p turning_d): " << driving_p << " " << turning_p << " " << turning_d << endl;
+    }
+    logging_interval_counter--;
+
     prev_a = robot.a;
 }
 
@@ -55,14 +65,14 @@ void wait_for_telemetry(){
 
 void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
     state=State::PathFollowing;
-    cout << "starting path following" << endl;
+    cout << "info: starting path following..." << endl;
     for(int i = 1;i<path.size();i++){
-        cout << "point " << i << "/" << path.size()-1 << endl;
+        cout << "info: point " << i << "/" << path.size()-1 << endl;
 
         float align_end_a = atan2(path[i].x-robot.x,-(path[i].y-robot.y));
 
         if(abs(fixAngleOverflow(robot.a-align_end_a))>ANGULAR_PRECISION_RADIANS){
-            cout << "aligning" << endl;
+            cout << "state: aligning..." << endl;
             target_v = 0;
             target_a = align_end_a;
             while(abs(fixAngleOverflow(robot.a-align_end_a))>ANGULAR_PRECISION_RADIANS){
@@ -88,14 +98,14 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
             float turn_start_distance = abs(path[i].r * tan(turn_delta_a/2));
             float turn_arc_length = abs(path[i].r * turn_delta_a);
 
-            cout << "driving..." << endl;
+            cout << "state: driving..." << endl;
             target_v = LINEAR_SPEED;
             while(distance(path[i].x,path[i].y,robot.x,robot.y)>turn_start_distance+TURNING_SLOWDOWN_DISTANCE){
                 wait_for_telemetry();
                 updatePID(robot);
             }
 
-            cout << "slow driving..." << endl;
+            cout << "state: slow driving..." << endl;
             target_v = TURNING_SPEED;
             while(distance(path[i].x,path[i].y,robot.x,robot.y)>LINEAR_PRECISION_METERS+turn_start_distance){
                 if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
@@ -109,7 +119,7 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
                 updatePID(robot);
             }
 
-            cout << "turning..." << endl;
+            cout << "state: turning..." << endl;
             float turn_progress = 0;
             if(turn_arc_length != 0){
                 while(turn_progress<1){
@@ -129,7 +139,7 @@ void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
             }
             target_a = turn_end_a;
         }else{
-            cout << "driving..." << endl;
+            cout << "state: driving..." << endl;
             target_v = LINEAR_SPEED;
             while(distance(path[i].x,path[i].y,robot.x,robot.y)>LINEAR_PRECISION_METERS){
                 if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
