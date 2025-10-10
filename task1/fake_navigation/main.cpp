@@ -1,5 +1,7 @@
+#include <algorithm>
 #include <asio.hpp>
 #include <asio/ip/udp.hpp>
+#include <cstdint>
 #include <iostream>
 #include <cstdlib>
 #include <chrono>
@@ -8,8 +10,11 @@
 #include <thread>
 #include <raylib.h>
 #include <opencv2/opencv.hpp>
+#include <utility>
 #include <vector>
 #include <numeric>
+#include "opencv2/core/mat.hpp"
+#include "opencv2/core/types.hpp"
 #include "utils.h"
 #include "params.h"
 #include "movement.h"
@@ -21,6 +26,7 @@ using namespace std;
 cv::Mat1b grid(cv::Size(GRID_W, GRID_H)); 
 cv::Mat1b pathfind_grid(cv::Size(GRID_W, GRID_H)); 
 queue<Msg> message_queue;
+cv::Mat distanceGrid(GRID_H, GRID_W, CV_32F);
 
 
 #ifdef BACKWARDS
@@ -85,6 +91,137 @@ void start_path(queue<Msg>* messages){
 
 thread path_thread;
 
+dstar::Key getKey(dstar::Cell c, dstar::Cell start, double g, double rhs){
+    dstar::Key result;
+    result.c = c;
+    result.k1 = min(g, rhs) + (abs(c.x - start.x)+abs(c.y - start.y));
+    result.k2 = min(g, rhs);
+    return result;
+}
+
+void pathfinder_loop(cv::Point finish, cv::Point* start){
+    /*
+    1. Init
+        * rhs = g = inf on any cell other then goal
+        * in goal rhs = 0 and g = inf
+        this makes the goal nonconsistent and so it isput in the "open" queue
+    2. Main loop pops the goal from the q, sets g = rhs, that changes the rhs of the cells near and puts them in the queue too
+    (Rhs is the minimum g you can find in the adjasent cells + 1, so the adjasent cells to the goal would be 0+1=1)
+    3. The process repeaats until no uncelculated cells are left (if there is a possible path from them tothe center)
+    4. profit
+    */
+
+    const double inf = std::numeric_limits<double>::max();
+
+    // g and rhs values: map[y][x] = {g, rhs}
+    std::vector<std::vector<std::pair<double, double>>> map(
+        GRID_H, std::vector<std::pair<double, double>>(GRID_W, {inf, inf})
+    );
+
+    // Priority queue for open list
+    std::priority_queue<
+        dstar::Key,
+        std::vector<dstar::Key>,
+        dstar::KeyComparator
+    > open_list; 
+
+    // Initialize goal
+    map[finish.y][finish.x] = {inf, 0};
+
+    open_list.push(getKey(
+        dstar::Cell(finish.x, finish.y),
+        dstar::Cell(start->x, start->y),
+        map[finish.y][finish.x].first,
+        map[finish.y][finish.x].second
+    ));
+
+    // Neighbor offsets: 
+    const std::vector<std::pair<int,int>> neighbors = {
+        {0,-1}, {0,1}, {-1,0}, {1,0}
+    };
+
+    while (true) {
+        // // Wait for TRIGGERUPDATE
+        // if (message_queue.empty() || message_queue.back() != Msg::TRIGGERUPDATE) {
+        //     this_thread::yield();
+        //     continue;
+        // }
+        // message_queue.pop();
+
+        // Process the open list
+        while (!open_list.empty()) {
+            dstar::Cell t = open_list.top().c;
+            open_list.pop();
+
+            double g_t = map[t.y][t.x].first;
+            double rhs_t = map[t.y][t.x].second;
+
+            if (g_t == rhs_t) continue; // consistent
+
+            if (g_t > rhs_t) { // overconsistent
+                map[t.y][t.x].first = rhs_t; // g = rhs
+
+                // Update neighbors
+                for (auto& offset : neighbors) {
+                    int nx = t.x + offset.first;
+                    int ny = t.y + offset.second;
+
+                    if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
+
+                    // Tentative rhs for neighbor
+                    double cost = 1.0; // assuming uniform grid cost
+                    double new_rhs = map[t.y][t.x].first + cost;
+
+                    if (new_rhs < map[ny][nx].second) {
+                        map[ny][nx].second = new_rhs;
+                        open_list.push(getKey(
+                            dstar::Cell(nx, ny),
+                            dstar::Cell(start->x, start->y),
+                            map[ny][nx].first,
+                            map[ny][nx].second
+                        ));
+                    }
+                }
+            } else { // underconsistent
+                map[t.y][t.x].first = inf;
+
+                // Update neighbors
+                for (auto& offset : neighbors) {
+                    int nx = t.x + offset.first;
+                    int ny = t.y + offset.second;
+
+                    if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
+
+                    double cost = 1.0;
+                    double new_rhs = map[t.y][t.x].first + cost;
+
+                    if (map[ny][nx].second == new_rhs) {
+                        // recompute rhs of neighbor
+                        double min_rhs = inf;
+                        for (auto& n2 : neighbors) {
+                            int nnx = nx + n2.first;
+                            int nny = ny + n2.second;
+                            if (nnx < 0 || nnx >= GRID_W || nny < 0 || nny >= GRID_H) continue;
+                            min_rhs = std::min(min_rhs, map[nny][nnx].first + cost);
+                        }
+                        map[ny][nx].second = min_rhs;
+                        open_list.push(getKey(
+                            dstar::Cell(nx, ny),
+                            dstar::Cell(start->x, start->y),
+                            map[ny][nx].first,
+                            map[ny][nx].second
+                        ));
+                    }
+                }
+            }
+        }
+
+
+        // Handle new walls
+
+    }
+}
+
 void draw_loop() {
     bool path_thread_exists = false;
 
@@ -107,7 +244,6 @@ void draw_loop() {
     UnloadImage(imgColor);
 
     
-    cv::Mat distanceGrid(GRID_H, GRID_W, CV_32F);
     cv::Point goal; 
     PathPoint t;
     t.x = -7.7;
@@ -234,6 +370,17 @@ int main() {
     path_thread = thread(start_path, &message_queue);
     #endif
 
+    PathPoint st, ft;
+    st.x = 12;
+    st.y = -1.25;
+    ft.x = 7.7;
+    ft.y = 0;
+    cv::Point s = worldToGrid(st);
+    cv::Point f = worldToGrid(ft);
+
+    // void pathfinder_loop(cv::Point finish, cv::Point* start, cv::Mat* graphics_grid, vector<PathPoint>* optimal_path )
+    thread dstar(pathfinder_loop, f, &s);
+
     Telemetry telemetry;
 
     while (running) {
@@ -324,4 +471,5 @@ int main() {
     #ifdef VISUALIZATION
     draw_thread.join();
     #endif
+    dstar.join();
 }

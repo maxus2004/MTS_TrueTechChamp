@@ -27,3 +27,15 @@ float fixAngleOverflow(float a){
     }
     return a;
 }
+
+bool dstar::Cell::operator<(const Cell& other) const{
+    if (x != other.x) return x < other.x;
+    return y < other.y;
+}
+
+bool dstar::KeyComparator::operator()(const Key& a, const Key& b) const {
+    if (a.k1 != b.k1) {
+        return a.k1 > b.k1;
+    }
+    return a.k2 > b.k2; 
+}

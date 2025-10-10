@@ -36,12 +36,31 @@ struct PathPoint{
 
 enum Msg {
     STARTFOLLOW,
-    STOPFOLOW
+    STOPFOLOW,
+    TRIGGERUPDATE
 };
 
 enum State{
     ManualControl,
     PathFollowing
+};
+
+struct dstar {
+    struct Cell { // because i need operator< for sort
+        int x;
+        int y; 
+        bool operator<(const Cell& other) const;
+        Cell(int a, int b) : x(a), y(b){};
+    };
+    struct Key {
+        double k1;
+        double k2;
+        Cell c = Cell(0,0);;
+        
+    };
+    struct KeyComparator {
+        bool operator()(const Key& a, const Key& b) const;
+    };
 };
 
 extern State state;
