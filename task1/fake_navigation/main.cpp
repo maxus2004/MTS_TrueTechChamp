@@ -9,6 +9,7 @@
 #include <raylib.h>
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <set>
 #include <numeric>
 #include "utils.h"
 #include "params.h"
@@ -19,7 +20,8 @@ using asio::ip::tcp;
 using namespace std;
 
 cv::Mat1b grid(cv::Size(GRID_W, GRID_H)); 
-cv::Mat1b pathfind_grid(cv::Size(GRID_W, GRID_H)); 
+cv::Mat1b allowed_grid(cv::Size(GRID_W, GRID_H)); 
+cv::Mat1f pathfind_grid(cv::Size(GRID_W, GRID_H)); 
 queue<Msg> message_queue;
 
 
@@ -83,7 +85,112 @@ void start_path(queue<Msg>* messages){
     followPath(path,robot, messages);
 }
 
+
+const int wavefront_kernel_size = 2;
+const int pathfind_kernel_size = 10;
+
+struct WavefrontPoint {
+    int x, y;
+    float dist;
+    
+};
+
+struct CompareWavefrontPoint {
+    bool operator()(const WavefrontPoint& a, const WavefrontPoint& b) const {
+        return a.dist < b.dist;
+    }
+};
+
+void wavefront(){
+    float wavefront_kernel[wavefront_kernel_size*2+1][wavefront_kernel_size*2+1];
+    for(int rx = -wavefront_kernel_size;rx<=wavefront_kernel_size;rx++){
+        for(int ry = -wavefront_kernel_size;ry<=wavefront_kernel_size;ry++){
+            wavefront_kernel[ry+wavefront_kernel_size][rx+wavefront_kernel_size] = sqrt((float)rx*rx+(float)ry*ry);
+        }
+    }
+
+    float pathfind_kernel[pathfind_kernel_size*2+1][pathfind_kernel_size*2+1];
+    for(int rx = -pathfind_kernel_size;rx<=pathfind_kernel_size;rx++){
+        for(int ry = -pathfind_kernel_size;ry<=pathfind_kernel_size;ry++){
+            pathfind_kernel[ry+pathfind_kernel_size][rx+pathfind_kernel_size] = sqrt((float)rx*rx+(float)ry*ry)*0.9f;
+        }
+    }
+
+    float goal_world_x = -7.7;
+    float goal_world_y = 0;
+    cv::Point goal = worldToGrid(goal_world_x,goal_world_y);
+    cv::Mat1f new_pathfind_grid(cv::Size(GRID_W, GRID_H));
+
+    int iteration = 0;
+
+    while (true){
+        new_pathfind_grid.setTo(INFINITY);
+
+        multiset<WavefrontPoint, CompareWavefrontPoint> nextPoints;
+        bool calculatedPoints[GRID_H][GRID_W] = {0};
+
+        nextPoints.insert(WavefrontPoint{goal.x,goal.y,0});
+        new_pathfind_grid[goal.y][goal.x] = 0;
+        calculatedPoints[goal.y][goal.x] = true;
+
+        while(nextPoints.size() > 0){
+            WavefrontPoint point = *nextPoints.begin();
+            nextPoints.extract(point);
+            for(int rx = -wavefront_kernel_size;rx<=wavefront_kernel_size;rx++){
+                for(int ry = -wavefront_kernel_size;ry<=wavefront_kernel_size;ry++){
+                    int x = point.x+rx;
+                    int y = point.y+ry;
+                    if(x < 0 || x >= GRID_W || y < 0 || y >= GRID_H) continue;
+                    if(allowed_grid[y][x] > 0) continue;
+                    if(((rx==0 && ry==1) || (rx==0 && ry==-1) || (rx==1 && ry==0) || (rx==-1 && ry==0)) && calculatedPoints[y][x] == false){
+                        nextPoints.insert(WavefrontPoint{x,y,new_pathfind_grid[point.y][point.x]});
+                        calculatedPoints[y][x] = true;
+                    }
+                    if(new_pathfind_grid[y][x] > new_pathfind_grid[point.y][point.x] + wavefront_kernel[ry+wavefront_kernel_size][rx+wavefront_kernel_size]){
+                        new_pathfind_grid[y][x] = new_pathfind_grid[point.y][point.x] + wavefront_kernel[ry+wavefront_kernel_size][rx+wavefront_kernel_size];
+                    }
+                }
+            }
+        }
+        new_pathfind_grid.copyTo(pathfind_grid);
+        cout << "wavefront done " << iteration << endl;
+
+        vector<PathPoint> newPath;
+        PathPoint nextPoint{robot.x, robot.y, 1};
+        while(true){
+            newPath.push_back(nextPoint);
+            cv::Point grid_point = worldToGrid(nextPoint);
+            int best_x = -1;
+            int best_y = -1;
+            float min_distance = pathfind_grid[grid_point.y][grid_point.x];
+            for(int rx = -pathfind_kernel_size;rx<=pathfind_kernel_size;rx++){
+                for(int ry = -pathfind_kernel_size;ry<=pathfind_kernel_size;ry++){
+                    int x = grid_point.x+rx;
+                    int y = grid_point.y+ry;
+                    if(x <= 0 || x >= GRID_W || y <= 0 || y >= GRID_H) continue;
+                    if(pathfind_grid[y][x] <= 0) continue;
+                    if(pathfind_grid[y][x]+pathfind_kernel[ry+pathfind_kernel_size][rx+pathfind_kernel_size] < min_distance){
+                        min_distance = pathfind_grid[y][x]+pathfind_kernel[ry+pathfind_kernel_size][rx+pathfind_kernel_size];
+                        best_x = x;
+                        best_y = y;
+                    }
+                }
+            }
+            cv::Point2f nextCvPoint = gridToWorld(best_x, best_y);
+            nextPoint = PathPoint{nextCvPoint.x, nextCvPoint.y, 1};
+            if(min_distance < 2)break;
+        }
+        path = newPath;
+        cout << "pathfind done " << iteration << endl;
+        
+        iteration++;
+    }
+}
+
 thread path_thread;
+
+thread wavefront_thread;
+
 
 void draw_loop() {
     bool path_thread_exists = false;
@@ -107,42 +214,42 @@ void draw_loop() {
     UnloadImage(imgColor);
 
     
-    cv::Mat distanceGrid(GRID_H, GRID_W, CV_32F);
-    cv::Point goal; 
-    PathPoint t;
-    t.x = -7.7;
-    t.y = 0;
-    goal = worldToGrid(t);
+    // cv::Mat distanceGrid(GRID_H, GRID_W, CV_32F);
+    // cv::Point goal; 
+    // PathPoint t;
+    // t.x = -7.7;
+    // t.y = 0;
+    // goal = worldToGrid(t);
 
-    for (int y = 0; y < GRID_H; y++) {
-        float dy = float(y - goal.y);
-        for (int x = 0; x < GRID_W; x++) {
-            float dx = float(x - goal.x);
-            distanceGrid.at<float>(y, x) = sqrt(dx*dx + dy*dy);
-        }
-    }
-    double minVal, maxVal;
-    cv::minMaxLoc(distanceGrid, &minVal, &maxVal);
-    distanceGrid = (distanceGrid - minVal) / (maxVal - minVal);
-
-
-    cv::Mat colorGrid(GRID_H, GRID_W, CV_8UC3);
-    uchar* colorData = colorGrid.data;
-    for (int y = 0; y < GRID_H; y++) {
-        const float* distRow = distanceGrid.ptr<float>(y);
-        for (int x = 0; x < GRID_W; x++) {
-            float val = distRow[x];
-            int idx = (y * GRID_W + x) * 3;
-            colorData[idx + 0] = (uchar)(val * 255);
-            colorData[idx + 1] = 0;                         
-            colorData[idx + 2] = (uchar)((1.0f - val) * 255); 
-        }
-    }
+    // for (int y = 0; y < GRID_H; y++) {
+    //     float dy = float(y - goal.y);
+    //     for (int x = 0; x < GRID_W; x++) {
+    //         float dx = float(x - goal.x);
+    //         distanceGrid.at<float>(y, x) = sqrt(dx*dx + dy*dy);
+    //     }
+    // }
+    // double minVal, maxVal;
+    // cv::minMaxLoc(distanceGrid, &minVal, &maxVal);
+    // distanceGrid = (distanceGrid - minVal) / (maxVal - minVal);
 
 
-    cv::Mat colorGridRGBA;
-    cv::cvtColor(colorGrid, colorGridRGBA, cv::COLOR_BGR2BGRA);
-    UpdateTexture(colorTex, colorGridRGBA.data);
+    // cv::Mat colorGrid(GRID_H, GRID_W, CV_8UC3);
+    // uchar* colorData = colorGrid.data;
+    // for (int y = 0; y < GRID_H; y++) {
+    //     const float* distRow = distanceGrid.ptr<float>(y);
+    //     for (int x = 0; x < GRID_W; x++) {
+    //         float val = distRow[x];
+    //         int idx = (y * GRID_W + x) * 3;
+    //         colorData[idx + 0] = (uchar)(val * 255);
+    //         colorData[idx + 1] = 0;                         
+    //         colorData[idx + 2] = (uchar)((1.0f - val) * 255); 
+    //     }
+    // }
+
+
+    // cv::Mat colorGridRGBA;
+    // cv::cvtColor(colorGrid, colorGridRGBA, cv::COLOR_BGR2BGRA);
+    // UpdateTexture(colorTex, colorGridRGBA.data);
 
 
     while (!WindowShouldClose()){
@@ -158,11 +265,17 @@ void draw_loop() {
                 message_queue.push(Msg::STOPFOLOW);
             }
         }
+        if(IsKeyPressed(KEY_F)){
+            wavefront_thread = thread(wavefront);
+        }
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
+        cv::Mat1b pathfind_grid_int(cv::Size(GRID_W, GRID_H));
+        pathfind_grid.convertTo(pathfind_grid_int, CV_8U, 0.2);
         cv::mixChannels(grid,pixelsMat,{0,0});
-        cv::mixChannels(pathfind_grid,pixelsMat,{0,1});
+        cv::mixChannels(allowed_grid,pixelsMat,{0,1});
+        cv::mixChannels(pathfind_grid_int,pixelsMat,{0,2});
 
         UpdateTexture(gridTex, pixels);
 
@@ -173,14 +286,14 @@ void draw_loop() {
         EndShaderMode();
 
         //draw path
-        for(int i = 1;i<path.size();i++){
+        for(size_t i = 1;i<path.size();i++){
             cv::Point2f p1 = worldToGrid(path[i-1]);
             cv::Point2f p2 = worldToGrid(path[i]);
             DrawLineEx({p1.x, p1.y}, {p2.x, p2.y}, 3, BLUE);
         }
 
         // Draw goal
-        DrawCircle(goal.x, goal.y, 5, MAGENTA);
+        // DrawCircle(goal.x, goal.y, 5, MAGENTA);
         
 
         //draw robot
@@ -318,7 +431,7 @@ int main() {
         cv::Mat element = cv::getStructuringElement( dilation_type,
                        cv::Size( 2*dilation_size + 1, 2*dilation_size+1 ),
                        cv::Point( dilation_size, dilation_size ) );
-        cv::dilate(gridCopy,pathfind_grid,element);
+        cv::dilate(gridCopy,allowed_grid,element);
     }
 
     #ifdef VISUALIZATION

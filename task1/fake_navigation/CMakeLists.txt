@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(ExternalProject)
 
+set(CMAKE_CXX_FLAGS "-Ofast")
+
 add_executable(fake_navigation main.cpp utils.h utils.cpp movement.h movement.cpp path.cpp path.h)
 
 include_directories("deps/asio-1.36.0/include")

@@ -11,6 +11,12 @@ cv::Point worldToGrid(PathPoint p){
     return cv::Point(p.x/CELL_SIZE+GRID_W/2,p.y/CELL_SIZE+GRID_H/2);
 }
 
+
+cv::Point2f gridToWorld(float x, float y){
+    return cv::Point2f((x-GRID_W/2)*CELL_SIZE,(y-GRID_H/2)*CELL_SIZE);
+}
+
+
 float distance(float x1, float y1, float x2, float y2){
     return sqrt(pow(x1-x2,2)+pow(y1-y2,2));
 }
