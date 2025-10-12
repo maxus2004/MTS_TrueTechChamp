@@ -283,9 +283,9 @@ void draw_loop() {
         //draw robot
         float screen_robot_x = robot.x/CELL_SIZE+GRID_W/2;
         float screen_robot_y = robot.y/CELL_SIZE+GRID_H/2;
-        float dir_x = 10*sin(robot.a);
-        float dir_y = -10*cos(robot.a);
-        DrawCircle(screen_robot_x, screen_robot_y, 10, GREEN);
+        float dir_x = 7*sin(robot.a);
+        float dir_y = -7*cos(robot.a);
+        DrawCircle(screen_robot_x, screen_robot_y, 7, GREEN);
         DrawLineEx({screen_robot_x, screen_robot_y}, {screen_robot_x+dir_x, screen_robot_y+dir_y}, 3, BLACK);
 
         // Draw coordinates
