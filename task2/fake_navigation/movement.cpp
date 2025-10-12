@@ -36,11 +36,6 @@ void handle_wasd(){
 
 void send_move(float v, float w){
     std::array<char, sizeof(float) * 2> packet;
-
-    #ifdef BACKWARDS
-    v = -v;
-    #endif
-
     std::memcpy(packet.data(), &v, sizeof(float));
     std::memcpy(packet.data() + sizeof(float), &w, sizeof(float));
     control_socket.send(asio::buffer(packet));
