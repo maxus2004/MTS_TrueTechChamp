@@ -184,55 +184,12 @@ void draw_loop() {
     Color* pixels = new Color[GRID_W * GRID_H];
     Image img = GenImageColor(GRID_W, GRID_H, BLACK);
     img.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-    Texture2D gridTex = LoadTextureFromImage(img);
+    Texture2D blackTexture = LoadTextureFromImage(img);
     UnloadImage(img);
 
-    cv::Mat pixelsMat(GRID_H, GRID_W, CV_8UC4, (void*)pixels);
-
-    
-    Image imgColor = GenImageColor(GRID_W, GRID_H, BLACK);
-    imgColor.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-    Texture2D colorTex = LoadTextureFromImage(imgColor);
-    UnloadImage(imgColor);
-
-    
-    // cv::Mat distanceGrid(GRID_H, GRID_W, CV_32F);
-    // cv::Point goal; 
-    // PathPoint t;
-    // t.x = -7.7;
-    // t.y = 0;
-    // goal = worldToGrid(t);
-
-    // for (int y = 0; y < GRID_H; y++) {
-    //     float dy = float(y - goal.y);
-    //     for (int x = 0; x < GRID_W; x++) {
-    //         float dx = float(x - goal.x);
-    //         distanceGrid.at<float>(y, x) = sqrt(dx*dx + dy*dy);
-    //     }
-    // }
-    // double minVal, maxVal;
-    // cv::minMaxLoc(distanceGrid, &minVal, &maxVal);
-    // distanceGrid = (distanceGrid - minVal) / (maxVal - minVal);
-
-
-    // cv::Mat colorGrid(GRID_H, GRID_W, CV_8UC3);
-    // uchar* colorData = colorGrid.data;
-    // for (int y = 0; y < GRID_H; y++) {
-    //     const float* distRow = distanceGrid.ptr<float>(y);
-    //     for (int x = 0; x < GRID_W; x++) {
-    //         float val = distRow[x];
-    //         int idx = (y * GRID_W + x) * 3;
-    //         colorData[idx + 0] = (uchar)(val * 255);
-    //         colorData[idx + 1] = 0;                         
-    //         colorData[idx + 2] = (uchar)((1.0f - val) * 255); 
-    //     }
-    // }
-
-
-    // cv::Mat colorGridRGBA;
-    // cv::cvtColor(colorGrid, colorGridRGBA, cv::COLOR_BGR2BGRA);
-    // UpdateTexture(colorTex, colorGridRGBA.data);
-
+    Texture2D grid_texture = LoadTextureFromImage(Image{grid.data, GRID_W, GRID_H, 1, PIXELFORMAT_UNCOMPRESSED_GRAYSCALE});
+    Texture2D cost_grid_texture = LoadTextureFromImage(Image{cost_grid.data, GRID_W, GRID_H, 1, PIXELFORMAT_UNCOMPRESSED_R32});
+    Texture2D pathfind_grid_texture = LoadTextureFromImage(Image{pathfind_grid.data, GRID_W, GRID_H, 1, PIXELFORMAT_UNCOMPRESSED_R32});
 
     while (!WindowShouldClose()){
         if(state == State::ManualControl){
@@ -253,20 +210,17 @@ void draw_loop() {
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        cv::Mat1b pathfind_grid_int(cv::Size(GRID_W, GRID_H));
-        pathfind_grid.convertTo(pathfind_grid_int, CV_8U, 0.2);
-        cv::Mat1b cost_grid_int(cv::Size(GRID_W, GRID_H));
-        cost_grid.convertTo(cost_grid_int, CV_8U, 255);
-        cv::mixChannels(grid,pixelsMat,{0,0});
-        cv::mixChannels(cost_grid_int,pixelsMat,{0,1});
-        cv::mixChannels(pathfind_grid_int,pixelsMat,{0,2});
-
-        UpdateTexture(gridTex, pixels);
-
         // Draw grids
+        UpdateTexture(grid_texture, grid.data);
+        UpdateTexture(cost_grid_texture, cost_grid.data);
+        UpdateTexture(pathfind_grid_texture, pathfind_grid.data);
         BeginShaderMode(shader);
-        SetShaderValueTexture(shader, GetShaderLocation(shader, "uColorMap"), colorTex);
-        DrawTexture(gridTex, 0, 0, WHITE);
+        SetShaderValueTexture(shader, GetShaderLocation(shader, "grid"), grid_texture);
+        SetShaderValueTexture(shader, GetShaderLocation(shader, "cost_grid"), cost_grid_texture);
+        SetShaderValueTexture(shader, GetShaderLocation(shader, "pathfind_grid"), pathfind_grid_texture);
+        float time = GetTime();
+        SetShaderValue(shader, GetShaderLocation(shader, "time"), &time, SHADER_UNIFORM_FLOAT);
+        DrawTexture(blackTexture, 0, 0, WHITE);
         EndShaderMode();
 
         //draw path
@@ -275,10 +229,6 @@ void draw_loop() {
             cv::Point2f p2 = worldToGrid(path[i]);
             DrawLineEx({p1.x, p1.y}, {p2.x, p2.y}, 3, BLUE);
         }
-
-        // Draw goal
-        // DrawCircle(goal.x, goal.y, 5, MAGENTA);
-        
 
         //draw robot
         float screen_robot_x = robot.x/CELL_SIZE+GRID_W/2;
@@ -294,15 +244,13 @@ void draw_loop() {
         // Draw FPS
         DrawText(TextFormat("%.02f FPS", 1.0/GetFrameTime()), 10, 50, 20, GREEN);
 
-
         EndDrawing();
     }
 
     running = false;
     // Cleanup
     delete[] pixels;
-    UnloadTexture(gridTex);
-    UnloadTexture(colorTex);
+    UnloadTexture(blackTexture);
     UnloadShader(shader);
     CloseWindow();
 }
