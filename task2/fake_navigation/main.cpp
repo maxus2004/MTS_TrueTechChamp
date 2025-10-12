@@ -179,6 +179,8 @@ void draw_loop() {
 
     InitWindow(GRID_W, GRID_H, "ArchBTW monitoring");
 
+    SetTargetFPS(60);
+
     Shader shader = LoadShader(NULL, "../grid_shader.fs");
 
     Color* pixels = new Color[GRID_W * GRID_H];

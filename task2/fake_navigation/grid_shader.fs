@@ -28,7 +28,7 @@ void main() {
     baseColor *= vec4(1.0, 1-cost_pixel, 1-cost_pixel, 1.0);
 
     if(pathfind_pixel<10000 && pathfind_pixel!=0){
-        baseColor *= vec4(int(pathfind_pixel+time*50)%40/80.0+0.5, int(pathfind_pixel+time*50)%40/80.0+0.5, 1.0, 1.0);
+        baseColor *= vec4(int(-pathfind_pixel-time*50)%40/80.0+0.5, int(-pathfind_pixel-time*50)%40/80.0+0.5, 1.0, 1.0);
     }
 
     fragColor = baseColor;
