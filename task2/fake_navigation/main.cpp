@@ -108,7 +108,7 @@ void wavefront(){
 
     int iteration = 0;
 
-    while (true){
+    while (running){
         new_pathfind_grid.setTo(INFINITY);
 
         multiset<WavefrontPoint, CompareWavefrontPoint> nextPoints;
@@ -170,9 +170,7 @@ void wavefront(){
 }
 
 thread path_thread;
-
 thread wavefront_thread;
-
 
 void draw_loop() {
     bool path_thread_exists = false;
@@ -258,6 +256,7 @@ void draw_loop() {
 }
 
 int main() {
+    try{
     //connect to simulation
     asio::io_context io_context;
     string host = "0.0.0.0";
@@ -278,6 +277,7 @@ int main() {
     #ifdef VISUALIZATION
     thread draw_thread(draw_loop);
     #else
+    wavefront_thread = thread(wavefront);
     path_thread = thread(start_path, &message_queue);
     #endif
 
@@ -382,4 +382,11 @@ int main() {
     #ifdef VISUALIZATION
     draw_thread.join();
     #endif
+    }catch(std::exception e){
+        running = false;
+        message_queue.push(Msg::STOPFOLOW);
+        path_thread.join();
+        wavefront_thread.join();
+        cout << "Exception: " << e.what() << endl;
+    }
 }

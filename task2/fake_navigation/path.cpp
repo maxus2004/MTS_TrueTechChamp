@@ -25,6 +25,8 @@ extern bool telemetry_updated;
 #define DRIVING_K_P 50.0f
 #define DRIVING_MAX_P 1.0f
 
+int logging_interval_counter = 0;
+
 void updatePID(Robot &robot){
     float a_error = fixAngleOverflow(target_a-robot.a);
     float va = fixAngleOverflow(robot.a-prev_a)/DT;
@@ -43,11 +45,19 @@ void updatePID(Robot &robot){
 
     send_move(driving_p, turning_p+turning_d);
 
+    if(logging_interval_counter == 0){
+        logging_interval_counter = 16;
+        cout << "debug: position (robot.x robot.y robot.a robot.v): " << robot.x << " " << robot.y << " " << robot.a << " " << robot.v << endl;
+        cout << "debug: target (target_v target_a): " << target_v << " " << target_a << endl;
+        cout << "debug: control (driving_p turning_p turning_d): " << driving_p << " " << turning_p << " " << turning_d << endl;
+    }
+    logging_interval_counter--;
+
     prev_a = robot.a;
 }
 
-void wait_for_telemetry(){
-    while(!telemetry_updated){
+void wait_for_telemetry(queue<Msg>* messages){
+    while(!telemetry_updated && messages->empty()){
         this_thread::yield();
     }
     telemetry_updated = false;
@@ -58,6 +68,10 @@ void followPath(vector<cv::Point2f> &path, Robot &robot, queue<Msg>* messages){
     cout << "starting path following" << endl;
     
     while(true){
+        if(path.size() == 0){
+            wait_for_telemetry(messages);
+            continue;
+        }
         vector<cv::Point2f> pathCopy = path;
         int i = 0;
         while(true){
@@ -73,7 +87,7 @@ void followPath(vector<cv::Point2f> &path, Robot &robot, queue<Msg>* messages){
         v -= abs_a_diff;
         if(v < 0) v = 0;
         target_v = v;
-        wait_for_telemetry();
+        wait_for_telemetry(messages);
         updatePID(robot);
         if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
             messages->pop();

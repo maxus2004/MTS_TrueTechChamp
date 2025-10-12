@@ -38,5 +38,9 @@ void send_move(float v, float w){
     std::array<char, sizeof(float) * 2> packet;
     std::memcpy(packet.data(), &v, sizeof(float));
     std::memcpy(packet.data() + sizeof(float), &w, sizeof(float));
+    try{
     control_socket.send(asio::buffer(packet));
+    }catch(std::exception e){
+        cout << "Exception: " << e.what() << endl;
+    }
 }
