@@ -33,7 +33,7 @@ State state = State::ManualControl;
 float prev_mts_x = 0;
 float prev_mts_y = 0;
 
-vector<PathPoint> path;
+vector<cv::Point2f> path;
 
 bool telemetry_updated = false;
 
@@ -67,15 +67,15 @@ void getScanPoints(ScanPoint *points, Telemetry &telemetry, Robot &robot){
 }
 
 void start_path(queue<Msg>* messages){
-    path.push_back({12,-1.25,0});
-    path.push_back({11.5,1,1});
-    path.push_back({5.5,-3,1});
-    path.push_back({3.5,0,1});
-    path.push_back({-4,0,1});
-    path.push_back({-5,-2,1});
-    path.push_back({-7.7,-4,1});
-    path.push_back({-7.7,0,0});
-    followPath(path,robot, messages);
+    // path.push_back({12,-1.25,0});
+    // path.push_back({11.5,1,1});
+    // path.push_back({5.5,-3,1});
+    // path.push_back({3.5,0,1});
+    // path.push_back({-4,0,1});
+    // path.push_back({-5,-2,1});
+    // path.push_back({-7.7,-4,1});
+    // path.push_back({-7.7,0,0});
+    followPath(path, robot, messages);
 }
 
 
@@ -148,8 +148,8 @@ void wavefront(){
         new_pathfind_grid.copyTo(pathfind_grid);
         cout << "wavefront done " << iteration << endl;
 
-        vector<PathPoint> newPath;
-        PathPoint nextPoint{robot.x, robot.y, 1};
+        vector<cv::Point2f> newPath;
+        cv::Point2f nextPoint(robot.x, robot.y);
         while(true){
             newPath.push_back(nextPoint);
             cv::Point grid_point = worldToGrid(nextPoint);
@@ -169,8 +169,7 @@ void wavefront(){
                     }
                 }
             }
-            cv::Point2f nextCvPoint = gridToWorld(best_x, best_y);
-            nextPoint = PathPoint{nextCvPoint.x, nextCvPoint.y, 1};
+            nextPoint = gridToWorld(best_x, best_y);
             if(min_distance < 2)break;
         }
         path = newPath;

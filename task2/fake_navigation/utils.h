@@ -30,10 +30,6 @@ struct ScanPoint{
     float x,y;
 };
 
-struct PathPoint{
-    float x,y,r;
-};
-
 enum Msg {
     STARTFOLLOW,
     STOPFOLOW
@@ -48,8 +44,9 @@ extern State state;
 
 cv::Point worldToGrid(float x, float y);
 cv::Point worldToGrid(ScanPoint p);
-cv::Point worldToGrid(PathPoint p);
+cv::Point worldToGrid(cv::Point2f p);
 cv::Point2f gridToWorld(float x, float y);
 float distance(float x1, float y1, float x2, float y2);
 float distance(ScanPoint p1, ScanPoint p2);
+float distance(cv::Point2f p1, cv::Point2f p2);
 float fixAngleOverflow(float a);

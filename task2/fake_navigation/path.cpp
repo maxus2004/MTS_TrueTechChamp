@@ -53,100 +53,37 @@ void wait_for_telemetry(){
     telemetry_updated = false;
 }
 
-void followPath(vector<PathPoint> path, Robot &robot, queue<Msg>* messages){
+void followPath(vector<cv::Point2f> &path, Robot &robot, queue<Msg>* messages){
     state=State::PathFollowing;
     cout << "starting path following" << endl;
-    for(int i = 1;i<path.size();i++){
-        cout << "point " << i << "/" << path.size()-1 << endl;
-
-        float align_end_a = atan2(path[i].x-robot.x,-(path[i].y-robot.y));
-
-        if(abs(fixAngleOverflow(robot.a-align_end_a))>ANGULAR_PRECISION_RADIANS){
-            cout << "aligning" << endl;
-            target_v = 0;
-            target_a = align_end_a;
-            while(abs(fixAngleOverflow(robot.a-align_end_a))>ANGULAR_PRECISION_RADIANS){
-                if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
-                    messages->pop();
-                    cout << "aborted" << endl;
-                    target_v = 0;
-                    send_move(0, 0);
-                    state = State::ManualControl;
-                    return;
-                }
-                wait_for_telemetry();
-                updatePID(robot);
+    
+    while(true){
+        vector<cv::Point2f> pathCopy = path;
+        int i = 0;
+        while(true){
+            if(distance(pathCopy[i].x,pathCopy[i].y,robot.x,robot.y)>=0.1f){
+                break;
             }
+            i++;
         }
-        target_v = LINEAR_SPEED;
-
-
-        if(i+1<path.size()){
-            float turn_start_a = align_end_a;
-            float turn_end_a = atan2(path[i+1].x-path[i].x,-(path[i+1].y-path[i].y));
-            float turn_delta_a = fixAngleOverflow(turn_end_a-turn_start_a);
-            float turn_start_distance = abs(path[i].r * tan(turn_delta_a/2));
-            float turn_arc_length = abs(path[i].r * turn_delta_a);
-
-            cout << "driving..." << endl;
-            target_v = LINEAR_SPEED;
-            while(distance(path[i].x,path[i].y,robot.x,robot.y)>turn_start_distance+TURNING_SLOWDOWN_DISTANCE){
-                wait_for_telemetry();
-                updatePID(robot);
-            }
-
-            cout << "slow driving..." << endl;
-            target_v = TURNING_SPEED;
-            while(distance(path[i].x,path[i].y,robot.x,robot.y)>LINEAR_PRECISION_METERS+turn_start_distance){
-                if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
-                    messages->pop();
-                    cout << "aborted" << endl;
-                    target_v = 0;
-                    send_move(0, 0);
-                    state = State::ManualControl;
-                    return;
-                }                wait_for_telemetry();
-                updatePID(robot);
-            }
-
-            cout << "turning..." << endl;
-            float turn_progress = 0;
-            if(turn_arc_length != 0){
-                while(turn_progress<1){
-                    if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
-                        messages->pop();
-                        cout << "aborted" << endl;
-                        target_v = 0;
-                        send_move(0, 0);
-                        state = State::ManualControl;
-                        return;
-                    }
-                    target_a = turn_start_a+turn_delta_a*turn_progress;
-                    turn_progress += robot.v*DT/turn_arc_length;
-                    wait_for_telemetry();
-                    updatePID(robot);
-                }
-            }
-            target_a = turn_end_a;
-        }else{
-            cout << "driving..." << endl;
-            target_v = LINEAR_SPEED;
-            while(distance(path[i].x,path[i].y,robot.x,robot.y)>LINEAR_PRECISION_METERS){
-                if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
-                    messages->pop();
-                    cout << "aborted" << endl;
-                    target_v = 0;
-                    send_move(0, 0);
-                    state = State::ManualControl;
-                    return;
-                }
-                wait_for_telemetry();
-                updatePID(robot);
-            }
+        cv::Point2f nextPoint = pathCopy[i];
+        target_a = atan2(nextPoint.x-robot.x,-(nextPoint.y-robot.y));
+        float abs_a_diff = abs(fixAngleOverflow(target_a-robot.a));
+        float v = 0.2f;
+        v -= abs_a_diff;
+        if(v < 0) v = 0;
+        target_v = v;
+        cout << abs_a_diff << " " << target_v << endl;
+        wait_for_telemetry();
+        updatePID(robot);
+        if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
+            messages->pop();
+            cout << "aborted" << endl;
+            break;
         }
     }
-    target_v = 0;
-    cout << "done" << endl;
 
+    target_v = 0;
+    send_move(0, 0);
     state = State::ManualControl;
 }
