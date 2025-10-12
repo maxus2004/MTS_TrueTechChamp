@@ -1,3 +1,5 @@
 build/
 task1/fake_navigation/.cache
 task1/controllers/udp_diff/results.csv
+task2/fake_navigation/.cache
+task2/controllers/udp_diff/results.csv
