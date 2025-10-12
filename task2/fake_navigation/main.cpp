@@ -20,7 +20,7 @@ using asio::ip::tcp;
 using namespace std;
 
 cv::Mat1b grid(cv::Size(GRID_W, GRID_H)); 
-cv::Mat1b allowed_grid(cv::Size(GRID_W, GRID_H)); 
+cv::Mat1f cost_grid(cv::Size(GRID_W, GRID_H)); 
 cv::Mat1f pathfind_grid(cv::Size(GRID_W, GRID_H)); 
 queue<Msg> message_queue;
 
@@ -46,7 +46,7 @@ void update_telemetry(Telemetry* telemetry, tcp::socket* telemetry_socket){
 
     //get actual odometry data from fucked up telemetry
     telemetry->gy = packet.gy;
-    telemetry->ds = distance(packet.x,packet.y,prev_mts_x,prev_mts_y) * ENCODER_LINEAR_MULTIPLIER;
+    telemetry->ds = distance(packet.x,packet.y,prev_mts_x,prev_mts_y) * ENCODER_LINEAR_MULTIPLIER * (packet.vx>0?1:-1);
     telemetry->v = telemetry->ds/DT;
     //copy lidar data to telemetry variable
     memcpy(&(telemetry->distances),&(packet.distances),sizeof(telemetry->distances));
@@ -67,20 +67,12 @@ void getScanPoints(ScanPoint *points, Telemetry &telemetry, Robot &robot){
 }
 
 void start_path(queue<Msg>* messages){
-    // path.push_back({12,-1.25,0});
-    // path.push_back({11.5,1,1});
-    // path.push_back({5.5,-3,1});
-    // path.push_back({3.5,0,1});
-    // path.push_back({-4,0,1});
-    // path.push_back({-5,-2,1});
-    // path.push_back({-7.7,-4,1});
-    // path.push_back({-7.7,0,0});
     followPath(path, robot, messages);
 }
 
 
 const int wavefront_kernel_size = 2;
-const int pathfind_kernel_size = 10;
+const int pathfind_kernel_size = 5;
 
 struct WavefrontPoint {
     int x, y;
@@ -134,19 +126,18 @@ void wavefront(){
                     int x = point.x+rx;
                     int y = point.y+ry;
                     if(x < 0 || x >= GRID_W || y < 0 || y >= GRID_H) continue;
-                    if(allowed_grid[y][x] > 0) continue;
+                    if(cost_grid[y][x] > 0.99f) continue;
                     if(((rx==0 && ry==1) || (rx==0 && ry==-1) || (rx==1 && ry==0) || (rx==-1 && ry==0)) && calculatedPoints[y][x] == false){
                         nextPoints.insert(WavefrontPoint{x,y,new_pathfind_grid[point.y][point.x]});
                         calculatedPoints[y][x] = true;
                     }
-                    if(new_pathfind_grid[y][x] > new_pathfind_grid[point.y][point.x] + wavefront_kernel[ry+wavefront_kernel_size][rx+wavefront_kernel_size]){
-                        new_pathfind_grid[y][x] = new_pathfind_grid[point.y][point.x] + wavefront_kernel[ry+wavefront_kernel_size][rx+wavefront_kernel_size];
+                    if(new_pathfind_grid[y][x] > new_pathfind_grid[point.y][point.x] + wavefront_kernel[ry+wavefront_kernel_size][rx+wavefront_kernel_size] + cost_grid[y][x]*20){
+                        new_pathfind_grid[y][x] = new_pathfind_grid[point.y][point.x] + wavefront_kernel[ry+wavefront_kernel_size][rx+wavefront_kernel_size] + cost_grid[y][x]*20;
                     }
                 }
             }
         }
         new_pathfind_grid.copyTo(pathfind_grid);
-        cout << "wavefront done " << iteration << endl;
 
         vector<cv::Point2f> newPath;
         cv::Point2f nextPoint(robot.x, robot.y);
@@ -170,10 +161,9 @@ void wavefront(){
                 }
             }
             nextPoint = gridToWorld(best_x, best_y);
-            if(min_distance < 2)break;
+            if(min_distance < 5)break;
         }
         path = newPath;
-        cout << "pathfind done " << iteration << endl;
         
         iteration++;
     }
@@ -265,8 +255,10 @@ void draw_loop() {
 
         cv::Mat1b pathfind_grid_int(cv::Size(GRID_W, GRID_H));
         pathfind_grid.convertTo(pathfind_grid_int, CV_8U, 0.2);
+        cv::Mat1b cost_grid_int(cv::Size(GRID_W, GRID_H));
+        cost_grid.convertTo(cost_grid_int, CV_8U, 255);
         cv::mixChannels(grid,pixelsMat,{0,0});
-        cv::mixChannels(allowed_grid,pixelsMat,{0,1});
+        cv::mixChannels(cost_grid_int,pixelsMat,{0,1});
         cv::mixChannels(pathfind_grid_int,pixelsMat,{0,2});
 
         UpdateTexture(gridTex, pixels);
@@ -297,10 +289,10 @@ void draw_loop() {
         DrawLineEx({screen_robot_x, screen_robot_y}, {screen_robot_x+dir_x, screen_robot_y+dir_y}, 3, BLACK);
 
         // Draw coordinates
-        DrawText(TextFormat("X: %.2f", robot.x), 10, 10, 20, RED);
-        DrawText(TextFormat("Y: %.2f", robot.y), 10, 30, 20, RED);
+        DrawText(TextFormat("X: %.2f", robot.x), 10, 10, 20, GREEN);
+        DrawText(TextFormat("Y: %.2f", robot.y), 10, 30, 20, GREEN);
         // Draw FPS
-        DrawText(TextFormat("%.02f FPS", 1.0/GetFrameTime()), 10, 50, 20, RED);
+        DrawText(TextFormat("%.02f FPS", 1.0/GetFrameTime()), 10, 50, 20, GREEN);
 
 
         EndDrawing();
@@ -338,6 +330,12 @@ int main() {
     #else
     path_thread = thread(start_path, &message_queue);
     #endif
+
+    //add outside walls
+    cv::line(grid,cv::Point(23,23),cv::Point(23,427),1,3);
+    cv::line(grid,cv::Point(23,427),cv::Point(427,427),1,3);
+    cv::line(grid,cv::Point(427,427),cv::Point(427,23),1,3);
+    cv::line(grid,cv::Point(427,23),cv::Point(23,23),1,3);
 
     Telemetry telemetry;
 
@@ -418,12 +416,17 @@ int main() {
 
         //expand walls for pathfinding
         cv::compare(gridCopy,1,gridCopy,cv::CMP_EQ);
-        int dilation_size = 7;
+        int dilation_size = 5;
         int dilation_type = cv::MORPH_ELLIPSE;
         cv::Mat element = cv::getStructuringElement( dilation_type,
                        cv::Size( 2*dilation_size + 1, 2*dilation_size+1 ),
                        cv::Point( dilation_size, dilation_size ) );
-        cv::dilate(gridCopy,allowed_grid,element);
+        cv::dilate(gridCopy,gridCopy,element);
+        // cv::bitwise_not(gridCopy,gridCopy);
+        cv::Mat1b gridCopy2(cv::Size(GRID_W, GRID_H));
+        cv::blur(gridCopy,gridCopy2,cv::Size(10,10));
+        cv::add(gridCopy,gridCopy2,gridCopy);
+        gridCopy.convertTo(cost_grid, CV_32F, 0.0039);
     }
 
     #ifdef VISUALIZATION

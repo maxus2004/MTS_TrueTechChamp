@@ -61,7 +61,7 @@ void followPath(vector<cv::Point2f> &path, Robot &robot, queue<Msg>* messages){
         vector<cv::Point2f> pathCopy = path;
         int i = 0;
         while(true){
-            if(distance(pathCopy[i].x,pathCopy[i].y,robot.x,robot.y)>=0.1f){
+            if(distance(pathCopy[i].x,pathCopy[i].y,robot.x,robot.y)>=0.15f){
                 break;
             }
             i++;
@@ -73,7 +73,6 @@ void followPath(vector<cv::Point2f> &path, Robot &robot, queue<Msg>* messages){
         v -= abs_a_diff;
         if(v < 0) v = 0;
         target_v = v;
-        cout << abs_a_diff << " " << target_v << endl;
         wait_for_telemetry();
         updatePID(robot);
         if (!messages->empty() && messages->front() == Msg::STOPFOLOW) {
