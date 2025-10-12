@@ -1,6 +1,6 @@
 {
-    "cmake.sourceDirectory": "${workspaceFolder}/task1/fake_navigation",
-    "cmake.buildDirectory": "${workspaceFolder}/task1/fake_navigation/build",
+    "cmake.sourceDirectory": "${workspaceFolder}/task2/fake_navigation",
+    "cmake.buildDirectory": "${workspaceFolder}/task2/fake_navigation/build",
     "files.associations": {
         "cmath": "cpp",
         "random": "cpp",
