@@ -1,0 +1,3 @@
+build/
+/deps/tmp
+/deps/opencv_tmp
