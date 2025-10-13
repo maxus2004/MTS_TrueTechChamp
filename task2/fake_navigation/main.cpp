@@ -175,9 +175,9 @@ thread wavefront_thread;
 void draw_loop() {
     bool path_thread_exists = false;
 
-    InitWindow(GRID_W, GRID_H, "ArchBTW monitoring");
+    SetConfigFlags(FLAG_VSYNC_HINT);
 
-    SetTargetFPS(60);
+    InitWindow(GRID_W, GRID_H, "ArchBTW monitoring");
 
     Shader shader = LoadShader(NULL, "../grid_shader.fs");
 
