@@ -172,11 +172,12 @@ void wavefront(){
 thread path_thread;
 thread wavefront_thread;
 
+deque<float> frame_times;
+
 void draw_loop() {
     bool path_thread_exists = false;
 
-    SetConfigFlags(FLAG_VSYNC_HINT);
-
+    SetTargetFPS(60);
     InitWindow(GRID_W, GRID_H, "ArchBTW monitoring");
 
     Shader shader = LoadShader(NULL, "../grid_shader.fs");
@@ -241,8 +242,11 @@ void draw_loop() {
         // Draw coordinates
         DrawText(TextFormat("X: %.2f", robot.x), 10, 10, 20, GREEN);
         DrawText(TextFormat("Y: %.2f", robot.y), 10, 30, 20, GREEN);
-        // Draw FPS
-        DrawText(TextFormat("%.02f FPS", 1.0/GetFrameTime()), 10, 50, 20, GREEN);
+        // Draw average FPS in the last 60 frames
+        frame_times.push_front(GetFrameTime());
+        if(frame_times.size() > 60)frame_times.pop_back();
+        float avg_frame_time = accumulate(frame_times.begin(), frame_times.end(), 0.0f)/frame_times.size();
+        DrawText(TextFormat("%.02f FPS", 1.0/avg_frame_time), 10, 50, 20, GREEN);
 
         EndDrawing();
     }
