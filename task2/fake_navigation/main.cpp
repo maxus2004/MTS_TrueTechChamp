@@ -173,6 +173,7 @@ thread path_thread;
 thread wavefront_thread;
 
 deque<float> frame_times;
+float frame_time_sum = 0;
 
 void draw_loop() {
     bool path_thread_exists = false;
@@ -244,9 +245,13 @@ void draw_loop() {
         DrawText(TextFormat("Y: %.2f", robot.y), 10, 30, 20, GREEN);
         // Draw average FPS in the last 60 frames
         frame_times.push_front(GetFrameTime());
-        if(frame_times.size() > 60)frame_times.pop_back();
-        float avg_frame_time = accumulate(frame_times.begin(), frame_times.end(), 0.0f)/frame_times.size();
-        DrawText(TextFormat("%.02f FPS", 1.0/avg_frame_time), 10, 50, 20, GREEN);
+        frame_time_sum += frame_times.front();
+        if(frame_times.size() > 60){
+            frame_time_sum -= frame_times.back();
+            frame_times.pop_back();
+        }
+        float avg_frame_time = frame_time_sum/frame_times.size();
+        DrawText(TextFormat("%.02f FPS", 1.0/(avg_frame_time)), 10, 50, 20, GREEN);
 
         EndDrawing();
     }
