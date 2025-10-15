@@ -17,6 +17,9 @@ float distance(float x1, float y1, float x2, float y2){
 float distance(ScanPoint p1, ScanPoint p2){
     return sqrt(pow(p1.x-p2.x,2)+pow(p1.y-p2.y,2));
 }
+float distance(PathPoint p1, PathPoint p2){
+    return sqrt(pow(p1.x-p2.x,2)+pow(p1.y-p2.y,2));
+}
 
 float fixAngleOverflow(float a){
     while(a>3.14159){
