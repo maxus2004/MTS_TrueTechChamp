@@ -20,7 +20,7 @@ if(NOT EXISTS "${OPENCV_DIR}/include/opencv4")
     ExternalProject_Add(
         opencv_project
         GIT_REPOSITORY https://github.com/opencv/opencv.git
-        GIT_TAG 4.10.0
+        GIT_TAG 4.12.0
         GIT_SHALLOW TRUE
         GIT_PROGRESS TRUE
         PREFIX "${CMAKE_SOURCE_DIR}/../deps/opencv_tmp"
