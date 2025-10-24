@@ -20,7 +20,7 @@ if(NOT EXISTS "${OPENCV_DIR}/include/opencv4")
     ExternalProject_Add(
         opencv_project
         GIT_REPOSITORY https://github.com/opencv/opencv.git
-        GIT_TAG 4.10.0
+        GIT_TAG 4.12.0
         GIT_SHALLOW TRUE
         GIT_PROGRESS TRUE
         PREFIX "${CMAKE_SOURCE_DIR}/../deps/opencv_tmp"
@@ -37,14 +37,47 @@ if(NOT EXISTS "${OPENCV_DIR}/include/opencv4")
     add_dependencies(fake_navigation opencv_project)
 endif()
 
+
 include_directories("${OPENCV_DIR}/include/opencv4")
-set(OpenCV_LIBS
-    "${OPENCV_DIR}/lib/libopencv_core.so"
-    "${OPENCV_DIR}/lib/libopencv_imgproc.so"
-    "${OPENCV_DIR}/lib/libopencv_highgui.so"
-    "${OPENCV_DIR}/lib/libopencv_imgcodecs.so"
-)
-target_link_libraries(fake_navigation PRIVATE ${OpenCV_LIBS})
+
+set(OPENCV_CMAKE_DIR "${OPENCV_DIR}/lib/cmake/opencv4")
+if(EXISTS "${OPENCV_CMAKE_DIR}/OpenCVConfig.cmake")
+    message(STATUS "Using vendored OpenCVConfig at ${OPENCV_CMAKE_DIR}")
+    set(OpenCV_DIR "${OPENCV_CMAKE_DIR}" CACHE PATH "OpenCV_DIR" FORCE)
+    find_package(OpenCV 4.12 REQUIRED COMPONENTS core imgproc highgui imgcodecs)
+    target_link_libraries(fake_navigation PRIVATE
+        OpenCV::core
+        OpenCV::imgproc
+        OpenCV::highgui
+        OpenCV::imgcodecs
+    )
+else()
+    message(STATUS "Vendored OpenCV CMake config not found at ${OPENCV_CMAKE_DIR}; using IMPORTED targets fallback.")
+    # Fallback
+    set(OPENCV_LIB_DIR "${OPENCV_DIR}/lib")
+    set(OPENCV_LIB_core "${OPENCV_LIB_DIR}/libopencv_core.so")
+    set(OPENCV_LIB_imgproc "${OPENCV_LIB_DIR}/libopencv_imgproc.so")
+    set(OPENCV_LIB_highgui "${OPENCV_LIB_DIR}/libopencv_highgui.so")
+    set(OPENCV_LIB_imgcodecs "${OPENCV_LIB_DIR}/libopencv_imgcodecs.so")
+
+    function(add_imported name path)
+        add_library(${name} SHARED IMPORTED)
+        set_target_properties(${name} PROPERTIES IMPORTED_LOCATION "${path}")
+    endfunction()
+
+    add_imported(OpenCV::core "${OPENCV_LIB_core}")
+    add_imported(OpenCV::imgproc "${OPENCV_LIB_imgproc}")
+    add_imported(OpenCV::highgui "${OPENCV_LIB_highgui}")
+    add_imported(OpenCV::imgcodecs "${OPENCV_LIB_imgcodecs}")
+
+    target_link_libraries(fake_navigation
+        PRIVATE
+            OpenCV::core
+            OpenCV::imgproc
+            OpenCV::highgui
+            OpenCV::imgcodecs
+    )
+endif()
 
 set_target_properties(fake_navigation PROPERTIES
     BUILD_RPATH "${OPENCV_DIR}/lib"
