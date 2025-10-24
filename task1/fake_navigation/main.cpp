@@ -84,6 +84,7 @@ void start_path(queue<Msg>* messages){
 }
 
 thread path_thread;
+thread draw_thread;
 
 void draw_loop() {
     bool path_thread_exists = false;
@@ -212,7 +213,7 @@ void draw_loop() {
 
 int main() {
     //connect to simulation
-    asio::io_context io_context;
+    asio::io_context io_context; // local io_context for telemetry
     string host = "0.0.0.0";
     string port = "5600";
     if(getenv("TEL_HOST") != NULL){
@@ -226,10 +227,12 @@ int main() {
     tcp::socket telemetry_socket(io_context);
     acceptor.accept(telemetry_socket);
 
+    // initialize movement (serial)
     init_movement();
 
     #ifdef VISUALIZATION
-    thread draw_thread(draw_loop);
+    // start draw thread (draw_thread is a global declared above)
+    draw_thread = thread(draw_loop);
     #else
     path_thread = thread(start_path, &message_queue);
     #endif
@@ -321,7 +324,16 @@ int main() {
         cv::dilate(gridCopy,pathfind_grid,element);
     }
 
+    // Program is exiting main loop. Clean up threads and movement subsystem.
+    // Shutdown movement (serial) first so any background IO stops.
+    shutdown_movement();
+
     #ifdef VISUALIZATION
-    draw_thread.join();
+    // join drawing thread if it was started
+    if (draw_thread.joinable()) draw_thread.join();
+    #else
+    if (path_thread.joinable()) path_thread.join();
     #endif
+
+    return 0;
 }
